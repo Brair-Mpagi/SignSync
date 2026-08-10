@@ -1,0 +1,42 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
+build/
+dist/
+.venv/
+venv/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# Node
+node_modules/
+frontend/dist/
+*.tsbuildinfo
+
+# Models & artefacts
+*.onnx
+*.pt
+*.pth
+*.ckpt
+artifacts/
+runs/
+
+# Participant data — NEVER commit recorded video, audio, landmarks or consent records.
+# See docs/data-protection.md (Uganda Data Protection and Privacy Act, 2019).
+data/raw/
+data/annotated/
+data/consent/
+data/derived/
+!data/**/.gitkeep
+!data/samples/
+
+# OS / editors
+.DS_Store
+.idea/
+.vscode/
+*.swp

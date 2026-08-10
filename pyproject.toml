@@ -1,0 +1,92 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "signsync"
+version = "0.1.0"
+description = "Bidirectional Ugandan Sign Language <-> spoken English translation system"
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "MIT" }
+authors = [{ name = "SignSync contributors" }]
+keywords = ["sign-language", "usl", "uganda", "translation", "accessibility"]
+
+# Core runtime: deliberately small so the pipeline runs on a mid-range laptop
+# with no GPU and no network. Everything heavier is an optional extra below.
+dependencies = [
+    "numpy>=1.24",
+]
+
+[project.optional-dependencies]
+# Camera capture + landmark tracking (Section 8.1 of docs/plan.md).
+vision = [
+    "mediapipe>=0.10",
+    "opencv-python>=4.8",
+]
+# Trainable temporal models (Section 8.2). Without this extra the NumPy
+# prototype recogniser is still available for demos and tests.
+models = [
+    "torch>=2.1",
+    "scikit-learn>=1.3",
+]
+# Speech in/out (Sections 8.5, 8.6).
+speech = [
+    "faster-whisper>=1.0",
+    "piper-tts>=1.2",
+]
+# Backend service (Section 10).
+api = [
+    "fastapi>=0.110",
+    "uvicorn[standard]>=0.27",
+    "python-multipart>=0.0.9",
+]
+# Optimised inference for deployment (Section 17, local-first).
+runtime = [
+    "onnx>=1.15",
+    "onnxruntime>=1.17",
+]
+dev = [
+    "pytest>=7.4",
+    "pytest-cov>=4.1",
+    "ruff>=0.4",
+    "mypy>=1.9",
+    "httpx>=0.27",
+]
+
+[project.scripts]
+signsync = "signsync.cli:main"
+
+[project.urls]
+Documentation = "https://github.com/Brair-Mpagi/SignSync/tree/main/docs"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+signsync = ["py.typed", "resources/*.json", "api/static/*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q --strict-markers"
+markers = [
+    "requires_torch: needs the 'models' extra installed",
+    "requires_mediapipe: needs the 'vision' extra installed",
+    "slow: long-running test, excluded from the default pre-commit run",
+]
+
+[tool.ruff]
+line-length = 100
+src = ["src", "tests"]
+target-version = "py310"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "SIM", "C4"]
+ignore = ["B008"]
+
+[tool.mypy]
+python_version = "3.10"
+packages = ["signsync"]
+mypy_path = "src"
+ignore_missing_imports = true
+warn_unused_ignores = true
