@@ -37,7 +37,14 @@ from .schema import (
     PoseIndex,
 )
 
-__all__ = ["SignerStyle", "synthetic_sign", "synthetic_sentence", "stable_seed"]
+__all__ = [
+    "SignerStyle",
+    "SignSignature",
+    "sign_signature",
+    "synthetic_sign",
+    "synthetic_sentence",
+    "stable_seed",
+]
 
 _PATHS = ("line", "arc", "circle", "repeat", "tap")
 
@@ -101,6 +108,48 @@ def _sign_parameters(gloss: str) -> dict[str, object]:
         "frames": int(rng.integers(18, 40)),
         "repeats": int(rng.integers(2, 4)),
     }
+
+
+@dataclass(frozen=True)
+class SignSignature:
+    """A gloss's motion signature, in body-frame units.
+
+    Shared between the synthetic tracker input and the avatar's motion library so
+    the two halves of the system agree on what a given gloss looks like. Without
+    that link, a round-trip demo would have the avatar sign something visibly
+    unrelated to what the recogniser was trained on, and no reviewer could tell
+    whether a failure was in recognition or in generation.
+
+    This is scaffolding, not linguistic content — the real motion library comes
+    from recorded signers (plan §8.7, stage 1).
+    """
+
+    gloss: str
+    wrist_path: np.ndarray  # (n, 3), dominant hand, body-frame units
+    curls: np.ndarray  # (5,) finger curl in radians
+    spread: float
+    two_handed: bool
+    brow: float
+    """Negative furrows, positive raises."""
+
+    head_tilt: float
+    n_frames: int
+
+
+def sign_signature(gloss: str, *, n_frames: int | None = None) -> SignSignature:
+    """The motion signature for a gloss."""
+    params = _sign_parameters(gloss)
+    n = n_frames or int(params["frames"])  # type: ignore[arg-type]
+    return SignSignature(
+        gloss=gloss.upper(),
+        wrist_path=_trajectory(params, n).astype(np.float32),
+        curls=np.asarray(params["curls"], dtype=np.float32),
+        spread=float(params["spread"]),  # type: ignore[arg-type]
+        two_handed=bool(params["two_handed"]),
+        brow=float(params["brow"]),  # type: ignore[arg-type]
+        head_tilt=float(params["head_tilt"]),  # type: ignore[arg-type]
+        n_frames=n,
+    )
 
 
 def _trajectory(params: dict[str, object], n: int) -> np.ndarray:
