@@ -48,9 +48,13 @@ The plan's Appendix C structure, mapped onto a `src/` Python package:
 | `avatar/` | [src/signsync/avatar/](src/signsync/avatar/) — rig definition, animation export |
 | `datasets/` | [src/signsync/datasets/](src/signsync/datasets/) — corpus schema, consent registry, splits, augmentation |
 | `evaluation/` | [src/signsync/evaluation/](src/signsync/evaluation/) — automatic metrics, human-evaluation tooling |
-| `api/` | [src/signsync/api/](src/signsync/api/) — FastAPI backend + realtime WebSocket pipeline |
-| `frontend/` | [frontend/](frontend/) — React + TypeScript + Three.js client |
+| `api/` | [src/signsync/api/](src/signsync/api/) — FastAPI backend, realtime WebSockets, and the dependency-free browser client |
+| `frontend/` | [frontend/](frontend/) — React + TypeScript + Three.js client (source only, unbuilt) |
 | `infrastructure/` | [infrastructure/](infrastructure/) — Docker, compose, CI |
+
+[src/signsync/pipeline.py](src/signsync/pipeline.py) is where the components become a system: the
+three modes of plan §18.3, end-to-end latency accounting against objective O11, and the warnings
+each result carries to the client.
 
 Recorded data lives in `data/` and is **git-ignored by default**. See
 [docs/data-protection.md](docs/data-protection.md) before putting anything there.
@@ -79,13 +83,48 @@ missing one disables.
 
 ## Run
 
+Everything below works offline with only the core dependency installed.
+
 ```bash
-signsync doctor                                  # capability report
-signsync demo sign-to-speech --synthetic         # Mode A, no camera needed
-signsync demo speech-to-sign --text "where is the hospital"   # Mode B
-signsync serve                                   # FastAPI + browser client on :8000
-pytest                                           # test suite (skips what isn't installed)
+signsync doctor                                     # what this machine can do
+
+# Build a synthetic corpus, train on it, and evaluate on held-out signers.
+signsync corpus build-synthetic data/samples/demo --signers 8
+signsync corpus stats data/samples/demo             # consent + diversity report
+signsync train data/samples/demo --out artifacts/recogniser.npz
+signsync evaluate data/samples/demo artifacts/recogniser.npz
+
+# Translate in either direction.
+signsync translate english-to-sign "Where is the hospital?" --trace
+signsync translate sign-to-english ME NEED HELP --trace
+
+# Run one exchange through the whole pipeline.
+signsync demo speech-to-sign --text "I do not understand"
+signsync demo sign-to-speech --synthetic --model artifacts/recogniser.npz
+
+# Serve the API and the browser client.
+signsync serve --model artifacts/recogniser.npz     # http://localhost:8000
 ```
+
+`signsync evaluate` exits non-zero until a certified human evaluation round exists. That is
+deliberate — see below.
+
+## Two things the code refuses to do
+
+Most of this repository is ordinary engineering. Two behaviours are not, and they are the reason
+several design decisions look inconvenient.
+
+**It will not use a clip without consent.** `datasets.consent` gates every load. Consent is a set
+of scopes rather than a boolean, an unlisted scope is denied, withdrawal is retroactive, and
+retention expiry removes clips from loading. The sample corpus ships with one withdrawn signer and
+one lapsed retention so any code path that ignores consent fails against the fixture instead of in
+production. See [docs/data-protection.md](docs/data-protection.md).
+
+**It will not call itself successful on automatic metrics.** `signsync evaluate` prints 100%
+accuracy on the synthetic corpus and still reports that the result supports no claim, because plan
+§15 makes human evaluation mandatory and plan §19 makes the Deaf community's verdict decisive. A
+round whose panel lacks Deaf evaluators cannot be certified, and Deaf panellists' scores are
+reported separately so a high aggregate cannot average their verdict away.
 
 ## Design notes
 
@@ -101,6 +140,14 @@ pytest                                           # test suite (skips what isn't 
   meaning — plan §8.7.
 - **Optional heavy dependencies.** Every third-party model runtime sits behind an adapter with a
   working offline fallback, so the pipeline is demonstrable in a clinic with no internet — plan §17.
+  CI proves it by running the whole suite in an environment where `torch`, `mediapipe` and `cv2`
+  are asserted to be absent.
+- **Handedness is canonicalised.** A left-handed signer produces the mirror image of the same sign,
+  so normalisation emits dominant/non-dominant channels rather than right/left. Without it, every
+  model has to learn each sign twice — see the commit history for what that cost in accuracy.
+- **Nothing is silently approximated.** A gloss with no motion clip is reported, not invented. A
+  word with no sign is reported, not dropped. A recogniser below threshold abstains rather than
+  guessing. The client is expected to show all three.
 
 ## Contributing
 

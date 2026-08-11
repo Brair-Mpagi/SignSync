@@ -33,10 +33,16 @@ data/annotated/
 data/consent/
 data/derived/
 !data/**/.gitkeep
-!data/samples/
+# data/samples/ holds synthetic corpora, which contain no real person and would be
+# safe to commit — but they are tens of megabytes and regenerable with one command
+# (`signsync corpus build-synthetic`), so they are not.
+data/samples/*
+!data/samples/.gitkeep
 
 # OS / editors
 .DS_Store
 .idea/
 .vscode/
 *.swp
+artifacts/*
+!artifacts/README.md

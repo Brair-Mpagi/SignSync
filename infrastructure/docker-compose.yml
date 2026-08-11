@@ -1,0 +1,74 @@
+# Local-first deployment (plan §17).
+#
+# One service by default: the API, which also serves the dependency-free browser
+# client. That is the whole system for a pilot site — plan §17 pilots in "a health
+# clinic, a school for the Deaf, a government service desk", where the realistic
+# deployment is one machine on a local network, not a cluster.
+#
+#   docker compose -f infrastructure/docker-compose.yml up --build
+#
+# The `frontend` profile adds the React client for sites that want the 3D avatar
+# and have the bandwidth to build it. Start it with:
+#
+#   docker compose --profile frontend up
+
+services:
+  api:
+    build:
+      context: ..
+      dockerfile: infrastructure/Dockerfile
+      args:
+        # Add "models" for the PyTorch recognisers, "vision" for server-side
+        # MediaPipe. Neither is needed when clients send landmarks (the default
+        # protocol) and the NumPy recogniser is in use.
+        EXTRAS: "api,runtime"
+    ports:
+      - "8000:8000"
+    volumes:
+      # Corpus and consent records stay on the host, mounted read-only. Baking them
+      # into the image would spread copies through layer caches and registries,
+      # which is incompatible with withdrawal and retention limits (plan §16).
+      - type: bind
+        source: ../data
+        target: /data
+        read_only: true
+      # Trained models are read-only too: the serving container has no reason to
+      # write to them, and a compromised service should not be able to.
+      - type: bind
+        source: ../artifacts
+        target: /artifacts
+        read_only: true
+    environment:
+      SIGNSYNC_MODEL: /artifacts/recogniser.npz
+      SIGNSYNC_DATA: /data
+    restart: unless-stopped
+    read_only: true
+    tmpfs:
+      - /tmp
+    security_opt:
+      - no-new-privileges:true
+    deploy:
+      resources:
+        limits:
+          # Sized for the hardware plan §17 assumes: a mid-range laptop or a small
+          # office machine, not a server.
+          cpus: "2.0"
+          memory: 2G
+
+  frontend:
+    profiles: ["frontend"]
+    image: node:20-alpine
+    working_dir: /app
+    command: sh -c "npm install && npm run dev -- --host 0.0.0.0"
+    ports:
+      - "5173:5173"
+    volumes:
+      - ../frontend:/app
+      - frontend-modules:/app/node_modules
+    environment:
+      VITE_API_BASE: http://localhost:8000
+    depends_on:
+      - api
+
+volumes:
+  frontend-modules:
