@@ -114,6 +114,49 @@ def _cmd_corpus_split(args: argparse.Namespace) -> int:
     return 0
 
 
+def _cmd_train(args: argparse.Namespace) -> int:
+    from .datasets.consent import ConsentRegistry
+    from .datasets.corpus import CorpusLoader
+    from .datasets.schema import Corpus
+    from .recognition.base import RecogniserConfig
+    from .recognition.train import TrainingRun, confusion_pairs, train_from_corpus
+
+    corpus = Corpus.load(args.corpus)
+    consent_path = Path(args.corpus) / "consent.json"
+    if not consent_path.exists():
+        print(
+            f"error: no consent.json at {consent_path}. Training requires consent records; "
+            "see docs/data-protection.md.",
+            file=sys.stderr,
+        )
+        return 2
+
+    loader = CorpusLoader(corpus, ConsentRegistry.load(consent_path))
+    print(f"consent: {loader.audit().summary()}\n")
+
+    result = train_from_corpus(
+        loader,
+        run=TrainingRun(
+            backend=args.backend,
+            recogniser=RecogniserConfig(
+                n_frames=args.frames, min_confidence=args.min_confidence
+            ),
+            augmentations=args.augmentations,
+            seed=args.seed,
+        ),
+        save_to=args.out,
+    )
+    print(result.summary())
+
+    if args.out:
+        print(f"\nsaved model to {args.out}")
+    print(
+        "\nThese numbers describe this corpus only. On synthetic data they say nothing "
+        "about USL recognition — see docs/limitations.md."
+    )
+    return 0
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="signsync",
@@ -155,6 +198,22 @@ def build_parser() -> argparse.ArgumentParser:
     split.add_argument("--seed", type=int, default=0)
     split.add_argument("--out", help="write the split to this JSON file")
     split.set_defaults(handler=_cmd_corpus_split)
+
+    train = sub.add_parser(
+        "train", help="train a sign recogniser and report held-out-signer accuracy"
+    )
+    train.add_argument("corpus", help="corpus directory containing manifest.json + consent.json")
+    train.add_argument(
+        "--backend",
+        default="prototype",
+        help="prototype (NumPy, no extras) or a torch model: lstm, gru, tcn, transformer",
+    )
+    train.add_argument("--augmentations", type=int, default=2, help="augmented copies per clip")
+    train.add_argument("--frames", type=int, default=32, help="frames each clip is resampled to")
+    train.add_argument("--min-confidence", type=float, default=0.45, dest="min_confidence")
+    train.add_argument("--seed", type=int, default=0)
+    train.add_argument("--out", help="write the trained model here")
+    train.set_defaults(handler=_cmd_train)
 
     return parser
 

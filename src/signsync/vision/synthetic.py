@@ -24,6 +24,9 @@ from dataclasses import dataclass
 import numpy as np
 
 from .schema import (
+    FACE_GROUPS,
+    FACE_MIRROR_PERM,
+    FACE_SUBSET_INDEX,
     N_FACE,
     N_HAND,
     N_POSE,
@@ -184,9 +187,12 @@ def synthetic_sign(
     scale = style.shoulder_width
     cx, cy = style.centre
 
+    # Signs are generated right-dominant and mirrored wholesale at the end for a
+    # left-handed signer. That is what a left-handed signer actually does — the
+    # whole signing space reflects, handshapes included — and generating the
+    # mirrored form piecemeal produced a signer whose dominant handshape did not
+    # match anyone's, which no canonicalisation could undo.
     traj = _trajectory(params, n)
-    if style.left_handed:
-        traj[:, 0] *= -1.0
 
     frames: list[FrameLandmarks] = []
     for t in range(n):
@@ -215,9 +221,7 @@ def synthetic_sign(
         if not params["two_handed"]:
             other_wrist = np.array([cx - scale * 0.6, cy + scale * 1.2, 0.0])
 
-        dom_left = style.left_handed
-        left_wrist = dominant_wrist if dom_left else other_wrist
-        right_wrist = other_wrist if dom_left else dominant_wrist
+        left_wrist, right_wrist = other_wrist, dominant_wrist
         pose[PoseIndex.LEFT_WRIST] = left_wrist
         pose[PoseIndex.RIGHT_WRIST] = right_wrist
         # Elbows hang below the shoulder-to-wrist midpoint, as a real arm does.
@@ -235,11 +239,8 @@ def synthetic_sign(
 
         curls = np.asarray(params["curls"], dtype=np.float64)
         shape = _hand_points(curls, float(params["spread"]), phase) * scale  # type: ignore[arg-type]
-        dominant_hand = shape + dominant_wrist
-        support_hand = shape * [-1, 1, 1] + other_wrist
-
-        left_hand = dominant_hand if dom_left else support_hand
-        right_hand = support_hand if dom_left else dominant_hand
+        right_hand = shape + dominant_wrist
+        left_hand = shape * [-1, 1, 1] + other_wrist
 
         face = _face_points(
             centre=(pose[PoseIndex.NOSE][0], head_y),
@@ -249,11 +250,14 @@ def synthetic_sign(
         )
 
         present = np.ones(Channel.COUNT, dtype=bool)
-        support_present = bool(params["two_handed"]) and rng.random() >= style.dropout
-        if dom_left:
-            present[Channel.RIGHT_HAND] = support_present
-        else:
-            present[Channel.LEFT_HAND] = support_present
+        present[Channel.LEFT_HAND] = (
+            bool(params["two_handed"]) and rng.random() >= style.dropout
+        )
+
+        if style.left_handed:
+            pose, left_hand, right_hand, face, present = _mirror_frame(
+                pose, left_hand, right_hand, face, present, cx
+            )
 
         noise = style.noise
         frames.append(
@@ -272,23 +276,142 @@ def synthetic_sign(
     )
 
 
-def _face_points(centre: tuple[float, float], scale: float, brow: float, mouth: float) -> np.ndarray:
-    """Face-mesh subset laid out around a centre, with brow height and mouth aperture."""
-    cx, cy = centre
-    face = np.zeros((N_FACE, 3), dtype=np.float64)
-    # Landmarks are laid out on an ellipse; the specific positions do not matter,
-    # only that brow height and mouth aperture vary consistently with the markers,
-    # since that is what the feature encoder measures.
+#: Pose landmarks that swap identity under a mirror.
+_MIRROR_POSE_PAIRS: tuple[tuple[int, int], ...] = (
+    (PoseIndex.LEFT_EYE, PoseIndex.RIGHT_EYE),
+    (PoseIndex.LEFT_EAR, PoseIndex.RIGHT_EAR),
+    (PoseIndex.LEFT_SHOULDER, PoseIndex.RIGHT_SHOULDER),
+    (PoseIndex.LEFT_ELBOW, PoseIndex.RIGHT_ELBOW),
+    (PoseIndex.LEFT_WRIST, PoseIndex.RIGHT_WRIST),
+    (PoseIndex.LEFT_INDEX, PoseIndex.RIGHT_INDEX),
+    (PoseIndex.LEFT_THUMB, PoseIndex.RIGHT_THUMB),
+    (PoseIndex.LEFT_HIP, PoseIndex.RIGHT_HIP),
+)
+
+
+def _mirror_frame(
+    pose: np.ndarray,
+    left_hand: np.ndarray,
+    right_hand: np.ndarray,
+    face: np.ndarray,
+    present: np.ndarray,
+    cx: float,
+) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+    """Reflect a whole frame about the signer's midline, swapping left and right.
+
+    A left-handed signer is not a right-handed signer with the hands relabelled:
+    the entire signing space reflects, so handshapes, arm geometry and body
+    landmarks all mirror together. Reproducing that faithfully is what makes
+    :func:`~signsync.vision.normalise.normalise_sequence`'s handedness
+    canonicalisation testable — a generator that mirrored only some channels would
+    make the canonicalisation look broken when it is correct.
+    """
+    reflect = lambda points: np.array([2 * cx, 0.0, 0.0]) + points * [-1.0, 1.0, 1.0]  # noqa: E731
+
+    mirrored_pose = reflect(pose)
+    for left, right in _MIRROR_POSE_PAIRS:
+        mirrored_pose[[left, right]] = mirrored_pose[[right, left]]
+
+    mirrored_present = present.copy()
+    mirrored_present[[Channel.LEFT_HAND, Channel.RIGHT_HAND]] = present[
+        [Channel.RIGHT_HAND, Channel.LEFT_HAND]
+    ]
+    # The face needs the same left/right relabelling as the body: reflecting the
+    # coordinates alone would leave the left-brow landmarks holding right-brow
+    # geometry, which is not a face any tracker would ever emit.
+    mirrored_face = reflect(face)[list(FACE_MIRROR_PERM)]
+
+    return (
+        mirrored_pose,
+        reflect(right_hand),
+        reflect(left_hand),
+        mirrored_face,
+        mirrored_present,
+    )
+
+
+#: Anatomical layout of the kept face landmarks, in head-radius units, for the
+#: signer's *left* side and the midline. The right side is derived by mirroring
+#: through :data:`~signsync.vision.schema.FACE_MIRROR_PAIRS`, which guarantees the
+#: two sides correspond exactly.
+#:
+#: Positions have to be roughly anatomical, not merely distinct: the normaliser
+#: scales the face by the distance between the outer eye corners (33 and 263), so a
+#: layout that happens to place those two points close together divides the whole
+#: block by nearly zero.
+_FACE_LAYOUT: dict[int, tuple[float, float]] = {
+    # midline
+    10: (0.00, -0.62),  # forehead
+    168: (0.00, -0.16),  # nose bridge
+    1: (0.00, 0.06),  # nose tip
+    152: (0.00, 0.78),  # chin
+    0: (0.00, 0.30),  # upper lip centre
+    17: (0.00, 0.46),  # lower lip centre
+    13: (0.00, 0.35),  # inner upper lip
+    14: (0.00, 0.40),  # inner lower lip
+    # left brow, outer to inner
+    70: (-0.46, -0.40),
+    63: (-0.38, -0.44),
+    105: (-0.30, -0.45),
+    66: (-0.22, -0.43),
+    107: (-0.14, -0.40),
+    # left eye
+    33: (-0.44, -0.22),  # outer corner
+    160: (-0.36, -0.28),  # upper lid
+    158: (-0.26, -0.28),
+    133: (-0.18, -0.22),  # inner corner
+    153: (-0.26, -0.16),  # lower lid
+    144: (-0.36, -0.16),
+    # left lips
+    61: (-0.30, 0.37),  # mouth corner
+    39: (-0.14, 0.31),
+    181: (-0.14, 0.44),
+    78: (-0.18, 0.37),  # inner corner
+    # left cheek
+    234: (-0.62, 0.14),
+}
+
+
+def _build_face_template() -> np.ndarray:
+    """Full ``(N_FACE, 2)`` layout, right side mirrored from the left."""
+    template = np.zeros((N_FACE, 2), dtype=np.float64)
+    for mesh_index, (x, y) in _FACE_LAYOUT.items():
+        template[FACE_SUBSET_INDEX[mesh_index]] = (x, y)
     for i in range(N_FACE):
-        angle = 2 * np.pi * i / N_FACE
-        face[i] = [
-            cx + 0.28 * scale * np.cos(angle),
-            cy + 0.34 * scale * np.sin(angle),
-            0.0,
-        ]
-    # Ordering follows FACE_GROUPS: brows first (10 points), then eyes (12), lips (12).
-    face[0:10, 1] -= brow * scale * 0.10
-    face[22:34, 1] += mouth * scale * 0.06
+        partner = FACE_MIRROR_PERM[i]
+        if partner != i and template[i].any() and not template[partner].any():
+            template[partner] = (-template[i][0], template[i][1])
+    return template
+
+
+_FACE_TEMPLATE = _build_face_template()
+
+_BROW_SUBSET = tuple(
+    FACE_SUBSET_INDEX[m]
+    for group in ("left_brow", "right_brow", "brow_centre")
+    for m in FACE_GROUPS[group]
+)
+_LIP_SUBSET = tuple(
+    FACE_SUBSET_INDEX[m] for group in ("outer_lips", "inner_lips") for m in FACE_GROUPS[group]
+)
+
+
+def _face_points(centre: tuple[float, float], scale: float, brow: float, mouth: float) -> np.ndarray:
+    """Face-mesh subset around a centre, with brow height and mouth aperture.
+
+    Left-right symmetric by construction, so that mirroring a clip produces a face
+    a tracker could actually have emitted — which is what makes the handedness
+    canonicalisation in :mod:`signsync.vision.normalise` testable.
+    """
+    cx, cy = centre
+    head = 0.62 * scale  # a head is roughly two-thirds of shoulder width across
+
+    face = np.zeros((N_FACE, 3), dtype=np.float64)
+    face[:, 0] = cx + _FACE_TEMPLATE[:, 0] * head
+    face[:, 1] = cy + _FACE_TEMPLATE[:, 1] * head
+
+    face[list(_BROW_SUBSET), 1] -= brow * head * 0.12
+    face[list(_LIP_SUBSET), 1] += mouth * head * 0.10
     return face
 
 

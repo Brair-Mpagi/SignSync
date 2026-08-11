@@ -16,6 +16,17 @@ hand encoding throws away the difference between distinct signs. The wrist's
 position in the body frame is kept separately, because *where* a sign is made
 carries meaning.
 
+Hands are also emitted as **dominant** and **non-dominant** rather than right and
+left, and a left-dominant signer's space is mirrored back to canonical form. This
+is how sign languages describe signs in the first place: a left-handed signer
+produces the mirror image of the same sign, not a different sign. Without this,
+every classifier has to learn each sign twice, and any model that summarises a
+class — including the prototype recogniser — is left trying to represent a
+bimodal class with one template. Note this is the opposite situation from
+:func:`~signsync.datasets.augment.mirror_handedness`: mirroring a left-dominant
+signer *recovers* the canonical form, while mirroring a right-dominant one
+invents a clip that reverses every directional sign.
+
 **Face.** Centred on the nose bridge and scaled by inter-ocular distance, with head
 rotation factored out into an explicit ``head_pose`` channel. Head tilt and shake
 are grammatical (negation, topic marking), so they are promoted to their own
@@ -38,12 +49,15 @@ from typing import Any, Literal
 import numpy as np
 
 from .schema import (
+    FACE_MIRROR_PERM,
     FACE_SUBSET_INDEX,
+    POSE_MIRROR_PAIRS,
     Channel,
     FrameLandmarks,
     HandIndex,
     LandmarkSequence,
     PoseIndex,
+    mirror_permutation,
 )
 
 __all__ = [
@@ -154,22 +168,28 @@ class NormalisedSequence:
     """Signer-normalised landmarks, split into linguistically distinct channels.
 
     ``body`` keeps the upper-body skeleton in body-frame units (1.0 = shoulder
-    width). ``left_local``/``right_local`` are wrist-centred handshapes.
-    ``left_wrist``/``right_wrist`` are the hands' *locations* in the body frame,
+    width). ``dominant_local``/``weak_local`` are wrist-centred handshapes, and
+    ``dominant_wrist``/``weak_wrist`` the hands' *locations* in the body frame —
     kept separate because location and handshape are independent parameters of a
     sign. ``face`` is head-rotation-free facial geometry and ``head_pose`` the
     rotation that was removed.
+
+    Channels are dominant/non-dominant, not right/left: see the module docstring.
+    ``dominant`` records which physical hand was detected as dominant, and
+    ``mirrored`` whether the signing space was flipped to reach canonical form.
     """
 
     body: np.ndarray  # (T, n_pose_kept, 3)
-    left_local: np.ndarray  # (T, 21, 3)
-    right_local: np.ndarray  # (T, 21, 3)
-    left_wrist: np.ndarray  # (T, 3)
-    right_wrist: np.ndarray  # (T, 3)
+    dominant_local: np.ndarray  # (T, 21, 3)
+    weak_local: np.ndarray  # (T, 21, 3)
+    dominant_wrist: np.ndarray  # (T, 3)
+    weak_wrist: np.ndarray  # (T, 3)
     face: np.ndarray  # (T, N_FACE, 3)
     head_pose: np.ndarray  # (T, 3)
-    present: np.ndarray  # (T, 4) bool
+    present: np.ndarray  # (T, 4) bool — pose, weak, dominant, face
     fps: float
+    dominant: str = "right"
+    mirrored: bool = False
     meta: dict[str, Any] = field(default_factory=dict)
 
     def __len__(self) -> int:
@@ -231,11 +251,73 @@ def _normalise_face(face: np.ndarray, present: bool, head_pose: np.ndarray) -> n
     return centred @ rot.T
 
 
+def detect_dominant_hand(sequence: LandmarkSequence) -> str:
+    """Which hand is doing the signing: ``"right"`` or ``"left"``.
+
+    Decided by how much each hand is tracked and how far it travels. The dominant
+    hand is present more often and moves more: the non-dominant hand is idle in
+    one-handed signs and, in two-handed signs, either mirrors the dominant hand or
+    stays still as a base. Ties resolve to right-handed, which is the majority case
+    and the safer default when the evidence is genuinely absent.
+
+    **Prefer the signer's recorded handedness where it exists.** Handedness is a
+    property of the signer, not of a clip, and this function cannot see that: a
+    symmetric two-handed sign gives it no evidence either way, so it falls back to
+    right-handed even for a left-handed signer. Detecting per clip therefore makes
+    a signer's own clips *disagree with each other*, which is worse than a
+    consistently wrong guess — the channels swap from clip to clip and every model
+    sees noise. :class:`~signsync.datasets.schema.SignerProfile` records handedness
+    for exactly this reason; :func:`signsync.recognition.dataset.encode_clip` uses
+    it. Use this function only for a stream from an unknown signer, and preferably
+    over several clips rather than one.
+    """
+    n = len(sequence)
+    if n == 0:
+        return "right"
+
+    scores = []
+    for hand, channel in (
+        (sequence.right_hand, Channel.RIGHT_HAND),
+        (sequence.left_hand, Channel.LEFT_HAND),
+    ):
+        present = sequence.present[:, channel]
+        coverage = float(present.mean())
+        if n > 1 and present.any():
+            wrists = hand[:, HandIndex.WRIST, :]
+            travel = float(np.linalg.norm(np.diff(wrists, axis=0), axis=1)[present[1:]].sum())
+        else:
+            travel = 0.0
+        scores.append(coverage * (1.0 + travel))
+
+    return "left" if scores[1] > scores[0] * 1.05 else "right"
+
+
+def _mirror_x(points: np.ndarray) -> np.ndarray:
+    """Reflect body-frame points across the signer's midline."""
+    out = np.asarray(points, dtype=np.float32).copy()
+    out[..., 0] *= -1.0
+    return out
+
+
+def _mirror_face(face: np.ndarray) -> np.ndarray:
+    """Reflect a face block, exchanging left/right paired landmarks.
+
+    Negating x alone is not a reflection of a face: it would leave the left-brow
+    landmarks holding right-brow geometry, so the mirrored face block would be
+    systematically scrambled for every left-handed signer, and the non-manual
+    channel — which is where negation and question marking live — would carry noise
+    instead of grammar.
+    """
+    return _mirror_x(face)[..., list(FACE_MIRROR_PERM), :]
+
+
 def normalise_sequence(
     sequence: LandmarkSequence,
     *,
     reference: ReferenceMode = "sequence",
     pose_indices: tuple[int, ...] | None = None,
+    dominant: str = "auto",
+    canonicalise_handedness: bool = True,
 ) -> NormalisedSequence:
     """Normalise a whole clip.
 
@@ -243,6 +325,11 @@ def normalise_sequence(
     body shifts stay visible in the output. ``"per_frame"`` re-estimates every
     frame, which stabilises a moving camera at the cost of erasing those shifts —
     use it only when the camera itself is handheld.
+
+    ``dominant`` is ``"auto"`` (detect), ``"right"`` or ``"left"``; pass the signer's
+    recorded handedness when the corpus knows it. ``canonicalise_handedness=False``
+    keeps a left-dominant signer's raw geometry, which is what you want when
+    *studying* handedness rather than recognising signs.
     """
     from .schema import UPPER_BODY_POSE
 
@@ -251,16 +338,21 @@ def normalise_sequence(
     if n == 0:
         return NormalisedSequence(
             body=np.zeros((0, len(kept), 3), dtype=np.float32),
-            left_local=np.zeros((0, 21, 3), dtype=np.float32),
-            right_local=np.zeros((0, 21, 3), dtype=np.float32),
-            left_wrist=np.zeros((0, 3), dtype=np.float32),
-            right_wrist=np.zeros((0, 3), dtype=np.float32),
+            dominant_local=np.zeros((0, 21, 3), dtype=np.float32),
+            weak_local=np.zeros((0, 21, 3), dtype=np.float32),
+            dominant_wrist=np.zeros((0, 3), dtype=np.float32),
+            weak_wrist=np.zeros((0, 3), dtype=np.float32),
             face=np.zeros((0, sequence.face.shape[1], 3), dtype=np.float32),
             head_pose=np.zeros((0, 3), dtype=np.float32),
             present=np.zeros((0, Channel.COUNT), dtype=bool),
             fps=sequence.fps,
             meta=dict(sequence.meta),
         )
+
+    if dominant == "auto":
+        dominant = detect_dominant_hand(sequence)
+    elif dominant not in ("left", "right"):
+        raise ValueError(f"dominant must be 'auto', 'left' or 'right', got {dominant!r}")
 
     per_frame = [
         estimate_body_frame(sequence.pose[t]) if sequence.present[t, Channel.POSE] else None
@@ -300,16 +392,41 @@ def normalise_sequence(
             sequence.face[t], bool(sequence.present[t, Channel.FACE]), head[t]
         )
 
+    present = sequence.present.copy()
+    mirror = canonicalise_handedness and dominant == "left"
+
+    if dominant == "left":
+        dominant_local, weak_local = left_local, right_local
+        dominant_wrist, weak_wrist = left_wrist, right_wrist
+        present = present[:, [Channel.POSE, Channel.RIGHT_HAND, Channel.LEFT_HAND, Channel.FACE]]
+    else:
+        dominant_local, weak_local = right_local, left_local
+        dominant_wrist, weak_wrist = right_wrist, left_wrist
+
+    if mirror:
+        # Reflect the signing space so a left-dominant signer's clip becomes the
+        # canonical form of the same sign, rather than a second variant every model
+        # would otherwise have to learn separately.
+        body = _mirror_x(body)[..., list(mirror_permutation(kept, POSE_MIRROR_PAIRS)), :]
+        dominant_local = _mirror_x(dominant_local)
+        weak_local = _mirror_x(weak_local)
+        dominant_wrist = _mirror_x(dominant_wrist)
+        weak_wrist = _mirror_x(weak_wrist)
+        face = _mirror_face(face)
+        head = head * np.array([-1.0, 1.0, -1.0], dtype=np.float32)  # yaw and roll flip
+
     return NormalisedSequence(
         body=body,
-        left_local=left_local,
-        right_local=right_local,
-        left_wrist=left_wrist,
-        right_wrist=right_wrist,
+        dominant_local=dominant_local,
+        weak_local=weak_local,
+        dominant_wrist=dominant_wrist,
+        weak_wrist=weak_wrist,
         face=face,
         head_pose=head,
-        present=sequence.present.copy(),
+        present=present,
         fps=sequence.fps,
+        dominant=dominant,
+        mirrored=mirror,
         meta=dict(sequence.meta),
     )
 
@@ -323,9 +440,17 @@ class StreamingNormaliser:
     values let tracking jitter wobble the whole coordinate system.
     """
 
-    def __init__(self, *, momentum: float = 0.95, fps: float = 30.0) -> None:
+    def __init__(
+        self, *, momentum: float = 0.95, fps: float = 30.0, dominant: str = "right"
+    ) -> None:
         if not 0.0 <= momentum < 1.0:
             raise ValueError(f"momentum must be in [0, 1), got {momentum}")
+        if dominant not in ("left", "right"):
+            raise ValueError(
+                f"dominant must be 'left' or 'right', got {dominant!r}; the streaming path "
+                "cannot detect handedness from a single frame, so it must be told"
+            )
+        self.dominant = dominant
         self.momentum = momentum
         self.fps = fps
         self._reference: BodyFrame | None = None
@@ -369,14 +494,25 @@ class StreamingNormaliser:
         """Normalise a single frame, returned as a length-1 sequence."""
         self.update_reference(frame)
         single = LandmarkSequence.from_frames([frame], fps=self.fps)
-        result = normalise_sequence(single, reference="sequence")
+        result = normalise_sequence(single, reference="sequence", dominant=self.dominant)
         # Re-apply using the running reference rather than this frame's own estimate.
         ref = self._reference or BodyFrame.identity()
         from .schema import UPPER_BODY_POSE
 
-        result.body[0] = ref.apply(frame.pose[list(UPPER_BODY_POSE)])
-        if frame.present[Channel.LEFT_HAND]:
-            result.left_wrist[0] = ref.apply(frame.left_hand[HandIndex.WRIST])
-        if frame.present[Channel.RIGHT_HAND]:
-            result.right_wrist[0] = ref.apply(frame.right_hand[HandIndex.WRIST])
+        sign = -1.0 if result.mirrored else 1.0
+        body = ref.apply(frame.pose[list(UPPER_BODY_POSE)])
+        body[..., 0] *= sign
+        result.body[0] = body
+
+        hands = {
+            "left": (frame.left_hand, Channel.LEFT_HAND),
+            "right": (frame.right_hand, Channel.RIGHT_HAND),
+        }
+        weak_side = "right" if self.dominant == "left" else "left"
+        for side, target in ((self.dominant, result.dominant_wrist), (weak_side, result.weak_wrist)):
+            hand, channel = hands[side]
+            if frame.present[channel]:
+                wrist = ref.apply(hand[HandIndex.WRIST])
+                wrist[0] *= sign
+                target[0] = wrist
         return result

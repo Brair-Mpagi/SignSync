@@ -10,12 +10,12 @@ Blocks, in order:
 
 ===============  ================================================================
 ``body``         upper-body skeleton in body-frame units
-``right_local``  wrist-centred handshape, dominant hand first
-``left_local``   wrist-centred handshape
-``right_wrist``  where the dominant hand is, in the body frame
-``left_wrist``   where the non-dominant hand is
-``right_shape``  handshape descriptors (extension, spread, curl)
-``left_shape``   handshape descriptors
+``dominant_local`` wrist-centred handshape of the signing hand
+``weak_local``     wrist-centred handshape of the non-dominant hand
+``dominant_wrist`` where the dominant hand is, in the body frame
+``weak_wrist``     where the non-dominant hand is
+``dominant_shape`` handshape descriptors (extension, spread, curl)
+``weak_shape``     handshape descriptors
 ``face``         head-rotation-free facial geometry
 ``head_pose``    yaw/pitch/roll — non-manual grammar
 ``present``      per-channel tracking flags
@@ -151,13 +151,16 @@ def encode_sequence(
         blocks.append(flat)
 
     add("body", sequence.body)
-    add("right_local", sequence.right_local)
-    add("left_local", sequence.left_local)
-    add("right_wrist", sequence.right_wrist)
-    add("left_wrist", sequence.left_wrist)
+    add("dominant_local", sequence.dominant_local)
+    add("weak_local", sequence.weak_local)
+    add("dominant_wrist", sequence.dominant_wrist)
+    add("weak_wrist", sequence.weak_wrist)
 
     if cfg.include_handshape:
-        for name, hand in (("right_shape", sequence.right_local), ("left_shape", sequence.left_local)):
+        for name, hand in (
+            ("dominant_shape", sequence.dominant_local),
+            ("weak_shape", sequence.weak_local),
+        ):
             desc = np.stack([handshape_descriptor(hand[t]) for t in range(n)]) if n else np.zeros(
                 (0, HANDSHAPE_DIM), dtype=np.float32
             )
@@ -228,10 +231,10 @@ def motion_energy(sequence: NormalisedSequence, *, smooth: int = 3) -> np.ndarra
 
     hands = np.concatenate(
         [
-            sequence.right_wrist,
-            sequence.left_wrist,
-            sequence.right_local.reshape(n, -1),
-            sequence.left_local.reshape(n, -1),
+            sequence.dominant_wrist,
+            sequence.weak_wrist,
+            sequence.dominant_local.reshape(n, -1),
+            sequence.weak_local.reshape(n, -1),
         ],
         axis=1,
     )

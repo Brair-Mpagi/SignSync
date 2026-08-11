@@ -22,7 +22,7 @@ def test_encoding_is_finite_and_documented(clip):
     assert features.shape == (len(clip), layout.dim)
     assert features.dtype == np.float32
     assert np.isfinite(features).all()
-    for block in ("body", "right_local", "left_local", "face", "head_pose", "present", "velocity"):
+    for block in ("body", "dominant_local", "weak_local", "face", "head_pose", "present", "velocity"):
         assert block in layout.blocks
     assert sum(s.stop - s.start for s in layout.blocks.values()) == layout.dim
 

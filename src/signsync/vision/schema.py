@@ -18,6 +18,7 @@ same scale as x, negative towards the camera) and become signer-normalised in
 
 from __future__ import annotations
 
+from collections.abc import Iterable, Sequence
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
@@ -32,6 +33,11 @@ __all__ = [
     "HandIndex",
     "FACE_GROUPS",
     "FACE_INDICES",
+    "FACE_MIRROR_PAIRS",
+    "FACE_MIRROR_PERM",
+    "POSE_MIRROR_PAIRS",
+    "UPPER_BODY_MIRROR_PERM",
+    "mirror_permutation",
     "FACE_SUBSET_INDEX",
     "UPPER_BODY_POSE",
     "Channel",
@@ -146,6 +152,81 @@ FACE_INDICES: tuple[int, ...] = tuple(idx for group in FACE_GROUPS.values() for 
 FACE_SUBSET_INDEX: dict[int, int] = {mesh: i for i, mesh in enumerate(FACE_INDICES)}
 
 N_FACE = len(FACE_INDICES)
+
+#: Mesh-index pairs that exchange identity when the signing space is mirrored.
+#:
+#: Reflecting a face is not just negating x. The left-brow landmarks have to *become*
+#: the right-brow landmarks, or the mirrored face block is scrambled: point 0 would
+#: hold the geometry of a point on the other side of the face, and every model reading
+#: that block would see noise. This matters for every left-handed signer, whose clips
+#: are mirrored into canonical form by :mod:`signsync.vision.normalise`.
+FACE_MIRROR_PAIRS: tuple[tuple[int, int], ...] = (
+    # brows, in matching order
+    (70, 336),
+    (63, 296),
+    (105, 334),
+    (66, 293),
+    (107, 300),
+    # eyes: outer/inner corners and upper/lower lids
+    (33, 263),
+    (160, 387),
+    (158, 385),
+    (133, 362),
+    (153, 380),
+    (144, 373),
+    # lips
+    (61, 291),
+    (39, 269),
+    (181, 405),
+    (78, 308),
+    # cheeks
+    (234, 454),
+)
+
+
+#: Pose landmarks that exchange identity when the signing space is mirrored.
+POSE_MIRROR_PAIRS: tuple[tuple[int, int], ...] = (
+    (PoseIndex.LEFT_EYE, PoseIndex.RIGHT_EYE),
+    (PoseIndex.LEFT_EAR, PoseIndex.RIGHT_EAR),
+    (PoseIndex.LEFT_SHOULDER, PoseIndex.RIGHT_SHOULDER),
+    (PoseIndex.LEFT_ELBOW, PoseIndex.RIGHT_ELBOW),
+    (PoseIndex.LEFT_WRIST, PoseIndex.RIGHT_WRIST),
+    (PoseIndex.LEFT_INDEX, PoseIndex.RIGHT_INDEX),
+    (PoseIndex.LEFT_THUMB, PoseIndex.RIGHT_THUMB),
+    (PoseIndex.LEFT_HIP, PoseIndex.RIGHT_HIP),
+)
+
+
+def mirror_permutation(
+    order: Sequence[int], pairs: Iterable[tuple[int, int]]
+) -> tuple[int, ...]:
+    """Permutation that relabels ``order`` under a left-right mirror.
+
+    Mirroring a body is not just negating x: the left shoulder has to *become* the
+    right shoulder, and the left brow the right brow. Without the relabelling, a
+    mirrored clip's skeleton is internally inconsistent — arms crossed over,
+    landmarks holding the opposite side's geometry — and every downstream model
+    reads it as an anatomically impossible pose rather than as the same sign.
+
+    Landmarks with no partner in ``order`` (midline points, or a partner that was
+    filtered out) map to themselves.
+    """
+    position = {landmark: i for i, landmark in enumerate(order)}
+    permutation = list(range(len(order)))
+    for left, right in pairs:
+        if left in position and right in position:
+            i, j = position[left], position[right]
+            permutation[i], permutation[j] = j, i
+    return tuple(permutation)
+
+
+#: ``face[..., FACE_MIRROR_PERM, :]`` reorders a face block into its mirrored
+#: identity. Midline points (nose bridge, nose tip, chin, forehead, lip centres) map
+#: to themselves.
+FACE_MIRROR_PERM: tuple[int, ...] = mirror_permutation(FACE_INDICES, FACE_MIRROR_PAIRS)
+
+#: The same, for the upper-body pose block.
+UPPER_BODY_MIRROR_PERM: tuple[int, ...] = mirror_permutation(UPPER_BODY_POSE, POSE_MIRROR_PAIRS)
 
 
 class Channel:

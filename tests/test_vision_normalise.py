@@ -33,7 +33,7 @@ def test_normalisation_is_invariant_to_camera_position_and_distance(clip):
     b = normalise_sequence(_shift_and_scale(clip, offset=0.13, scale=1.7))
 
     np.testing.assert_allclose(a.body, b.body, atol=1e-4)
-    np.testing.assert_allclose(a.right_wrist, b.right_wrist, atol=1e-4)
+    np.testing.assert_allclose(a.dominant_wrist, b.dominant_wrist, atol=1e-4)
 
 
 def test_normalisation_preserves_the_difference_between_two_signs(signer):
@@ -41,7 +41,7 @@ def test_normalisation_preserves_the_difference_between_two_signs(signer):
     hello = normalise_sequence(synthetic_sign("HELLO", signer))
     water = normalise_sequence(synthetic_sign("WATER", signer))
     n = min(len(hello), len(water))
-    assert np.abs(hello.right_wrist[:n] - water.right_wrist[:n]).max() > 0.1
+    assert np.abs(hello.dominant_wrist[:n] - water.dominant_wrist[:n]).max() > 0.1
 
 
 def test_normalisation_reduces_between_signer_distance(signer, other_signer):
@@ -76,14 +76,14 @@ def test_degenerate_shoulders_do_not_explode_the_sequence(clip):
     )
     result = normalise_sequence(broken)
     assert np.isfinite(result.body).all()
-    assert np.isfinite(result.right_wrist).all()
+    assert np.isfinite(result.dominant_wrist).all()
 
 
 def test_absent_hand_normalises_to_zero_not_to_noise(clip):
     clip.present[:, Channel.LEFT_HAND] = False
     result = normalise_sequence(clip)
-    np.testing.assert_array_equal(result.left_local, np.zeros_like(result.left_local))
-    np.testing.assert_array_equal(result.left_wrist, np.zeros_like(result.left_wrist))
+    np.testing.assert_array_equal(result.weak_local, np.zeros_like(result.weak_local))
+    np.testing.assert_array_equal(result.weak_wrist, np.zeros_like(result.weak_wrist))
 
 
 def test_head_pose_detects_a_tilt():
