@@ -183,6 +183,78 @@ def _cmd_translate(args: argparse.Namespace) -> int:
     return 0
 
 
+def _build_pipeline(model_path: str | None):  # type: ignore[no-untyped-def]
+    """Assemble a pipeline, loading a recogniser if one was given."""
+    from .pipeline import SignSyncPipeline
+    from .speech.stt import best_available_stt
+    from .speech.tts import best_available_tts
+
+    recogniser = None
+    if model_path:
+        from .recognition.prototype import PrototypeRecogniser
+
+        recogniser = PrototypeRecogniser.load(model_path)
+
+    return SignSyncPipeline(
+        recogniser=recogniser,
+        stt=best_available_stt(),  # type: ignore[arg-type]
+        tts=best_available_tts(),  # type: ignore[arg-type]
+    )
+
+
+def _cmd_serve(args: argparse.Namespace) -> int:
+    from .api import create_app
+
+    uvicorn = __import__("uvicorn")
+    pipeline = _build_pipeline(args.model)
+
+    print(f"capabilities: {pipeline.capabilities()}")
+    for warning in pipeline.deployment_warnings():
+        print(f"  ! {warning}")
+    print(f"\nserving on http://{args.host}:{args.port}")
+
+    uvicorn.run(create_app(pipeline), host=args.host, port=args.port, log_level=args.log_level)
+    return 0
+
+
+def _cmd_demo(args: argparse.Namespace) -> int:
+    """Run one exchange through the whole pipeline, on the terminal."""
+    from .vision.synthetic import synthetic_sentence
+
+    pipeline = _build_pipeline(args.model)
+
+    if args.mode == "speech-to-sign":
+        result = pipeline.speech_to_sign(args.text)
+        print(f'heard   : "{result.transcript.text}"')
+        print(f"glosses : {' '.join(result.glosses) or '(none)'}")
+        print(f"\n{result.sequence.notation()}\n")
+        print(
+            f"motion  : {len(result.animation)} frames, "
+            f"{result.animation.duration:.1f}s, {len(result.motion.missing)} sign(s) missing"
+        )
+    else:
+        glosses = args.glosses or ["ME", "NEED", "HELP"]
+        if args.synthetic and pipeline.recogniser is not None:
+            sequence = synthetic_sentence(glosses, "demo-signer")
+            result_a = pipeline.sign_to_speech(sequence)
+            print(f"signed  : {' '.join(glosses)}  (synthetic signer)")
+            print(f"detected: {' '.join(result_a.glosses) or '(nothing)'}")
+        else:
+            result_a = pipeline.sign_to_speech(glosses)
+            print(f"glosses : {' '.join(glosses)}")
+        print(f'english : "{result_a.text}"')
+        print(f"spoken  : {result_a.speech.engine} (audible={result_a.speech.is_audible})")
+        print(f"confidence: {result_a.confidence:.0%}")
+
+    warnings = getattr(result if args.mode == "speech-to-sign" else result_a, "warnings", ())
+    if warnings:
+        print()
+        for warning in warnings:
+            print(f"  ! {warning}")
+    print(f"\nlatency: {pipeline.latency_report()['total_p95_ms']:.0f} ms (p95, this run)")
+    return 0
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="signsync",
@@ -250,6 +322,25 @@ def build_parser() -> argparse.ArgumentParser:
     translate.add_argument("input", nargs="+", help="glosses, or an English sentence")
     translate.add_argument("--trace", action="store_true", help="show the semantic frame")
     translate.set_defaults(handler=_cmd_translate)
+
+    serve = sub.add_parser("serve", help="run the API and browser client")
+    serve.add_argument("--host", default="127.0.0.1")
+    serve.add_argument("--port", type=int, default=8000)
+    serve.add_argument("--model", help="path to a trained recogniser (.npz)")
+    serve.add_argument("--log-level", default="info")
+    serve.set_defaults(handler=_cmd_serve)
+
+    demo = sub.add_parser("demo", help="run one exchange through the whole pipeline")
+    demo.add_argument("mode", choices=("sign-to-speech", "speech-to-sign"))
+    demo.add_argument("--text", default="Where is the hospital?", help="input for speech-to-sign")
+    demo.add_argument("--glosses", nargs="*", help="input for sign-to-speech")
+    demo.add_argument("--model", help="path to a trained recogniser (.npz)")
+    demo.add_argument(
+        "--synthetic",
+        action="store_true",
+        help="generate synthetic signing and recognise it, exercising the vision path",
+    )
+    demo.set_defaults(handler=_cmd_demo)
 
     return parser
 
