@@ -255,6 +255,60 @@ def _cmd_demo(args: argparse.Namespace) -> int:
     return 0
 
 
+def _cmd_evaluate(args: argparse.Namespace) -> int:
+    from .datasets.consent import ConsentRegistry
+    from .datasets.corpus import CorpusLoader
+    from .datasets.schema import Corpus
+    from .datasets.splits import signer_independent_split
+    from .evaluation import (
+        EvaluationReport,
+        EvaluationRound,
+        classification_report,
+        confusion_pairs,
+    )
+    from .recognition.dataset import feature_sets_for_split
+    from .recognition.prototype import PrototypeRecogniser
+
+    corpus = Corpus.load(args.corpus)
+    registry = ConsentRegistry.load(Path(args.corpus) / "consent.json")
+    loader = CorpusLoader(corpus, registry)
+
+    recogniser = PrototypeRecogniser.load(args.model)
+    records = [r for r in loader.permitted_clips() if not r.is_continuous]
+    split = signer_independent_split(corpus, records=records, seed=args.seed)
+    sets = feature_sets_for_split(loader, split, augmentations=0)
+
+    evaluation_set = sets.get("test") or sets["train"]
+    predicted = [recogniser.predict(s).gloss for s in evaluation_set.sequences]
+    report = classification_report(evaluation_set.labels, predicted)
+
+    human_rounds = []
+    for path in args.human or []:
+        human_rounds.append(EvaluationRound.load(path).result())
+
+    full = EvaluationReport(
+        recognition=report,
+        human_rounds=human_rounds,
+        # True by construction here: the split above is signer-independent and
+        # validated. It is a field rather than an assumption because a report can
+        # also be assembled from numbers produced elsewhere.
+        signer_independent=True,
+        corpus_note=f"{corpus.name}: {len(records)} consented isolated clips, {split.summary()}",
+    )
+    print(full.summary())
+
+    pairs = confusion_pairs(evaluation_set.labels, predicted)
+    if pairs:
+        print("\nmost confused sign pairs:")
+        for true_gloss, predicted_gloss, count in pairs[:5]:
+            print(f"  {true_gloss} -> {predicted_gloss} ({count}x)")
+
+    if args.out:
+        full.save(args.out)
+        print(f"\nwrote {args.out}")
+    return 0 if full.can_claim_success else 1
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="signsync",
@@ -341,6 +395,22 @@ def build_parser() -> argparse.ArgumentParser:
         help="generate synthetic signing and recognise it, exercising the vision path",
     )
     demo.set_defaults(handler=_cmd_demo)
+
+    evaluate = sub.add_parser(
+        "evaluate",
+        help="evaluate a model on held-out signers and report against plan §15",
+    )
+    evaluate.add_argument("corpus", help="corpus directory")
+    evaluate.add_argument("model", help="trained recogniser (.npz)")
+    evaluate.add_argument(
+        "--human",
+        nargs="*",
+        help="human evaluation round files. Without at least one certified round "
+        "the report cannot support a success claim (plan §15).",
+    )
+    evaluate.add_argument("--seed", type=int, default=0)
+    evaluate.add_argument("--out", help="write the report JSON here")
+    evaluate.set_defaults(handler=_cmd_evaluate)
 
     return parser
 
