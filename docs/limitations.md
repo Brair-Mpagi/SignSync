@@ -16,6 +16,17 @@ Concretely, the current rules encode a simplified topic–comment reordering and
 non-manual markers. Real USL grammar includes spatial referencing, classifier predicates, verb
 agreement through space, and role shift — none of which are handled yet.
 
+Three further limits of the translation layer, all visible in its output rather than hidden:
+
+- **One clause per utterance.** A sentence with two clauses is collapsed into a single frame, so
+  "I do not understand, where is the hospital?" comes out as one gloss sequence with both a
+  negation and a question marker over it. Clause segmentation is not implemented.
+- **Modality is not represented.** CAN, MUST and similar have no place in the semantic frame, so
+  those words are reported as untranslatable rather than dropped. That is deliberate: dropping
+  "must" turns an instruction into a description.
+- **Recipients are treated as patients.** `GIVE` is marked as an agreeing verb in the lexicon, but
+  the generator does not yet use spatial loci to express who gives to whom.
+
 ## There are no trained recognition weights
 
 The repository ships model *architectures* and a training pipeline, not weights. The NumPy

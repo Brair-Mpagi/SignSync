@@ -157,6 +157,32 @@ def _cmd_train(args: argparse.Namespace) -> int:
     return 0
 
 
+def _cmd_translate(args: argparse.Namespace) -> int:
+    from .translation import EnglishToSign, SignToEnglish, default_lexicon
+
+    lexicon = default_lexicon()
+    if not lexicon.is_validated:
+        print(f"warning: {lexicon.warning}\n", file=sys.stderr)
+
+    if args.direction == "sign-to-english":
+        result = SignToEnglish(lexicon).translate([g.upper() for g in args.input])
+        print(result.text)
+        if args.trace:
+            print(f"\nframe     : {result.frame.describe()}")
+            print(f"confidence: {result.confidence:.0%}")
+        if result.unresolved:
+            print(f"\nnot translated: {', '.join(result.unresolved)}", file=sys.stderr)
+    else:
+        sequence = EnglishToSign(lexicon).translate(" ".join(args.input))
+        print(sequence.notation())
+        if args.trace:
+            print(f"\nframe   : {sequence.frame.describe()}")
+            print(f"markers : {[m.marker.value for m in sequence.markers]}")
+        if sequence.unresolved:
+            print(f"\nno sign for: {', '.join(sequence.unresolved)}", file=sys.stderr)
+    return 0
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="signsync",
@@ -214,6 +240,16 @@ def build_parser() -> argparse.ArgumentParser:
     train.add_argument("--seed", type=int, default=0)
     train.add_argument("--out", help="write the trained model here")
     train.set_defaults(handler=_cmd_train)
+
+    translate = sub.add_parser("translate", help="translate between USL glosses and English")
+    translate.add_argument(
+        "direction",
+        choices=("sign-to-english", "english-to-sign"),
+        help="which way to translate",
+    )
+    translate.add_argument("input", nargs="+", help="glosses, or an English sentence")
+    translate.add_argument("--trace", action="store_true", help="show the semantic frame")
+    translate.set_defaults(handler=_cmd_translate)
 
     return parser
 
