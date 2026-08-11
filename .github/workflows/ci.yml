@@ -83,16 +83,21 @@ jobs:
       - run: pip install -e ".[dev,api]"
       - run: pytest tests/test_api.py tests/test_pipeline.py -q
 
-      - name: End-to-end pipeline on a synthetic corpus
+      # Runs the same script a contributor and a pilot site run, rather than a
+      # CI-only sequence that can drift from it.
+      - name: End-to-end pipeline via run.sh
+        run: ./run.sh --skip-setup --no-serve --force
+
+      - name: The server must actually come up and report health
         run: |
-          signsync doctor
-          signsync corpus build-synthetic /tmp/corpus --signers 8 --repeats 2
-          signsync corpus stats /tmp/corpus
-          signsync train /tmp/corpus --out /tmp/model.npz
-          signsync demo speech-to-sign --text "Where is the hospital?"
-          # Exits non-zero without a certified human evaluation round, which is the
-          # designed behaviour (plan §15) — so the failure is expected here.
-          signsync evaluate /tmp/corpus /tmp/model.npz || true
+          signsync serve --host 127.0.0.1 --port 8000 --model artifacts/recogniser.npz &
+          for _ in $(seq 1 30); do
+            curl -sf http://127.0.0.1:8000/health > /tmp/health.json && break
+            sleep 1
+          done
+          cat /tmp/health.json
+          python -c "import json;h=json.load(open('/tmp/health.json'));assert h['capabilities']['recognition'], h"
+          curl -sf http://127.0.0.1:8000/ | grep -q SignSync
 
   models:
     name: torch models
@@ -116,15 +121,51 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Build
-        run: docker build -f infrastructure/Dockerfile -t signsync:ci .
-      - name: The image must start and report its capabilities
+
+      - name: Build and start via run-docker.sh
+        run: ./infrastructure/run-docker.sh --detach --demo
+
+      - name: The container must serve, recognise, and translate
         run: |
-          docker run -d --name signsync-ci -p 8000:8000 signsync:ci
-          for _ in $(seq 1 30); do
-            if curl -sf http://localhost:8000/health > /tmp/health.json; then break; fi
-            sleep 2
-          done
+          curl -sf http://localhost:8000/health > /tmp/health.json
           cat /tmp/health.json
-          grep -q '"status":"ok"' /tmp/health.json
-          docker rm -f signsync-ci
+          python - <<'PY'
+          import json
+          health = json.load(open("/tmp/health.json"))
+          assert health["status"] == "ok", health
+          # The demo bootstrap trains a model, so recognition must be live. Without
+          # this assertion the container could serve happily while recognising
+          # nothing, which is the failure the entrypoint exists to prevent.
+          assert health["capabilities"]["recognition"], health
+          PY
+          curl -sf -X POST http://localhost:8000/api/english-to-sign \
+            -H 'Content-Type: application/json' \
+            -d '{"text":"Where is the hospital?"}' | grep -q HOSPITAL
+          curl -sf http://localhost:8000/ | grep -q SignSync
+
+      - name: A bad model path must stop the container, not start it broken
+        run: |
+          if docker run --rm -e SIGNSYNC_MODEL=/nope.npz signsync:latest; then
+            echo "container started with a missing model — it must not" >&2
+            exit 1
+          fi
+
+      - name: Participant data must not be in the image
+        run: |
+          # data/ and artifacts/ are .dockerignore'd; layers are cached and pushed,
+          # so anything that lands in one is effectively undeletable.
+          # find, not ls: `ls` given two directories prints a header per directory,
+          # which a naive grep counts as content and turns into a false failure.
+          count=$(docker run --rm --entrypoint sh signsync:latest -c 'find /data /artifacts -mindepth 1 | wc -l')
+          echo "entries under /data and /artifacts: $count"
+          test "$count" -eq 0
+
+      - name: The demo model must not be written to the mounted volume
+        run: |
+          # A synthetic demo model left in artifacts/ is one somebody later mistakes
+          # for a trained system.
+          test -z "$(ls -A artifacts | grep -v README.md || true)"
+
+      - name: Stop
+        if: always()
+        run: docker rm -f signsync || true

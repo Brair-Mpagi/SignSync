@@ -1,4 +1,4 @@
-.PHONY: help install dev test lint fmt typecheck check serve clean
+.PHONY: help install dev test lint fmt typecheck check run serve docker docker-demo docker-stop clean
 
 PY ?= python3
 
@@ -26,8 +26,20 @@ typecheck: ## Static types
 
 check: lint typecheck test ## Everything CI runs
 
+run: ## Whole system: set up, build a corpus, train, evaluate, serve
+	./run.sh
+
 serve: ## Run the API + browser client on :8000
 	$(PY) -m signsync.cli serve
+
+docker: ## Build the image and serve in a container
+	./infrastructure/run-docker.sh
+
+docker-demo: ## Same, but train a synthetic demo model on first boot
+	./infrastructure/run-docker.sh --demo --detach
+
+docker-stop: ## Stop and remove the container
+	docker rm -f signsync 2>/dev/null || true
 
 clean:
 	rm -rf .pytest_cache .ruff_cache .mypy_cache htmlcov .coverage build dist

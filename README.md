@@ -54,7 +54,12 @@ The plan's Appendix C structure, mapped onto a `src/` Python package:
 
 [src/signsync/pipeline.py](src/signsync/pipeline.py) is where the components become a system: the
 three modes of plan §18.3, end-to-end latency accounting against objective O11, and the warnings
-each result carries to the client.
+each result carries to the client. [src/signsync/config.py](src/signsync/config.py) is the single
+place `SIGNSYNC_*` environment variables are read, which is how a container is configured.
+
+Entry points: [run.sh](run.sh) runs the whole system on the host,
+[infrastructure/run-docker.sh](infrastructure/run-docker.sh) runs it in a container, and `make help`
+lists the shortcuts for both.
 
 Recorded data lives in `data/` and is **git-ignored by default**. See
 [docs/data-protection.md](docs/data-protection.md) before putting anything there.
@@ -81,7 +86,28 @@ pip install -e ".[runtime]"   # onnxruntime: optimised deployment inference
 `signsync doctor` reports which capabilities are available in the current environment and what each
 missing one disables.
 
-## Run
+## Run the whole thing
+
+One script, from an empty checkout to a served translator:
+
+```bash
+./run.sh                    # set up, build a corpus, train, evaluate, serve on :8000
+./run.sh --help             # stages, options
+./run.sh --no-serve --test  # what CI does
+./run.sh --only serve --model artifacts/recogniser.npz
+```
+
+Or in a container — no compose plugin required:
+
+```bash
+./infrastructure/run-docker.sh --demo     # build, train a synthetic model, serve
+./infrastructure/run-docker.sh --model artifacts/recogniser.npz
+docker compose -f infrastructure/docker-compose.yml up --build   # if you have compose
+```
+
+See [infrastructure/](infrastructure/) for what a real deployment needs beyond this.
+
+## Run the stages individually
 
 Everything below works offline with only the core dependency installed.
 

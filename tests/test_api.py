@@ -1,8 +1,11 @@
 from __future__ import annotations
 
+import types
+
 import pytest
 
 pytest.importorskip("fastapi")
+from fastapi import FastAPI  # noqa: E402
 from fastapi.testclient import TestClient  # noqa: E402
 
 from signsync.api import create_app  # noqa: E402
@@ -32,6 +35,30 @@ def recogniser():
             sequences.append(features)
             labels.append(gloss)
     return PrototypeRecogniser(RecogniserConfig(min_confidence=0.3)).fit(sequences, labels)
+
+
+# --------------------------------------------------------------------------- asgi target
+
+
+def test_uvicorn_target_resolves_to_the_application_not_a_module():
+    """`uvicorn signsync.api:app` is what the container runs.
+
+    A submodule named `app` would shadow this attribute — module __getattr__ only
+    runs when normal lookup fails — and uvicorn would receive the module, starting
+    cleanly and then failing on every request with "'module' object is not
+    callable". That is why the routes live in server.py.
+    """
+    import signsync.api as api
+
+    resolved = api.app
+    assert isinstance(resolved, FastAPI), f"expected a FastAPI app, got {type(resolved)}"
+    assert resolved is api.app, "the app should be built once, not per attribute access"
+
+
+def test_importing_the_package_does_not_shadow_the_app():
+    import signsync.api as api
+
+    assert not isinstance(getattr(api, "app", None), types.ModuleType)
 
 
 # --------------------------------------------------------------------------- status

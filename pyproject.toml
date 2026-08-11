@@ -36,9 +36,17 @@ speech = [
     "piper-tts>=1.2",
 ]
 # Backend service (Section 10).
+#
+# uvicorn without [standard]: that extra adds uvloop, httptools and watchfiles,
+# which together are tens of megabytes for a reload watcher this never uses and a
+# performance gain that is irrelevant next to the recognition and motion stages
+# (see /api/metrics — they dominate the round trip by two orders of magnitude).
+# Plan §17 has this image travelling over slow links, so the default stays lean;
+# install `uvicorn[standard]` alongside if a site is throughput-bound.
 api = [
     "fastapi>=0.110",
-    "uvicorn[standard]>=0.27",
+    "uvicorn>=0.27",
+    "websockets>=12.0",
     "python-multipart>=0.0.9",
 ]
 # Optimised inference for deployment (Section 17, local-first).

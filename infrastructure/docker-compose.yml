@@ -7,10 +7,14 @@
 #
 #   docker compose -f infrastructure/docker-compose.yml up --build
 #
-# The `frontend` profile adds the React client for sites that want the 3D avatar
-# and have the bandwidth to build it. Start it with:
+# Or, without needing the compose plugin:
 #
-#   docker compose --profile frontend up
+#   ./infrastructure/run-docker.sh
+#
+# The `frontend` profile adds the React client for sites that want the 3D avatar and
+# have the bandwidth to build it:
+#
+#   docker compose -f infrastructure/docker-compose.yml --profile frontend up
 
 services:
   api:
@@ -18,12 +22,24 @@ services:
       context: ..
       dockerfile: infrastructure/Dockerfile
       args:
-        # Add "models" for the PyTorch recognisers, "vision" for server-side
-        # MediaPipe. Neither is needed when clients send landmarks (the default
-        # protocol) and the NumPy recogniser is in use.
-        EXTRAS: "api,runtime"
+        # Smallest set that serves both directions. Add "models" for the PyTorch
+        # recognisers, "vision" for server-side MediaPipe, "runtime" for ONNX. None
+        # is needed when clients send landmarks and the NumPy recogniser serves them.
+        EXTRAS: "${SIGNSYNC_EXTRAS:-api}"
+    image: signsync:latest
     ports:
       - "8000:8000"
+    environment:
+      # Point at a trained model to enable sign recognition. Nothing is inferred:
+      # a path that does not exist stops the container at startup rather than
+      # leaving a service that silently recognises nothing.
+      SIGNSYNC_MODEL: "${SIGNSYNC_MODEL:-}"
+      # Set to 1 to train a synthetic demo model on first boot. Scaffolding for a
+      # demonstration, not a trained system — it contains no USL, and every response
+      # it produces carries the warnings that say so.
+      SIGNSYNC_BOOTSTRAP_DEMO: "${SIGNSYNC_BOOTSTRAP_DEMO:-0}"
+      SIGNSYNC_MIN_CONFIDENCE: "${SIGNSYNC_MIN_CONFIDENCE:-0.6}"
+      SIGNSYNC_LOG_LEVEL: "${SIGNSYNC_LOG_LEVEL:-info}"
     volumes:
       # Corpus and consent records stay on the host, mounted read-only. Baking them
       # into the image would spread copies through layer caches and registries,
@@ -32,21 +48,29 @@ services:
         source: ../data
         target: /data
         read_only: true
-      # Trained models are read-only too: the serving container has no reason to
-      # write to them, and a compromised service should not be able to.
+      # Models are writable only because the optional demo bootstrap trains one
+      # here. A site that mounts a pre-trained model should make this read_only.
       - type: bind
         source: ../artifacts
         target: /artifacts
-        read_only: true
-    environment:
-      SIGNSYNC_MODEL: /artifacts/recogniser.npz
-      SIGNSYNC_DATA: /data
     restart: unless-stopped
+    # Hardened: nothing in the container writes outside the mounted volumes and
+    # /tmp. PYTHONDONTWRITEBYTECODE keeps the interpreter from wanting to.
     read_only: true
     tmpfs:
       - /tmp
     security_opt:
       - no-new-privileges:true
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=4).status == 200 else 1)"
+      interval: 30s
+      timeout: 5s
+      start_period: 20s
+      retries: 3
     deploy:
       resources:
         limits:
@@ -68,7 +92,8 @@ services:
     environment:
       VITE_API_BASE: http://localhost:8000
     depends_on:
-      - api
+      api:
+        condition: service_healthy
 
 volumes:
   frontend-modules:

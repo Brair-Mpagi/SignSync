@@ -184,22 +184,22 @@ def _cmd_translate(args: argparse.Namespace) -> int:
 
 
 def _build_pipeline(model_path: str | None):  # type: ignore[no-untyped-def]
-    """Assemble a pipeline, loading a recogniser if one was given."""
-    from .pipeline import SignSyncPipeline
-    from .speech.stt import best_available_stt
-    from .speech.tts import best_available_tts
+    """Assemble a pipeline from the environment, with ``--model`` taking precedence.
 
-    recogniser = None
+    Same code path the container uses, so a deployment debugged with ``signsync
+    serve`` behaves identically once it is in an image.
+    """
+    import os
+    from dataclasses import replace
+
+    from .config import pipeline_from_env, settings_from_env
+
     if model_path:
-        from .recognition.prototype import PrototypeRecogniser
-
-        recogniser = PrototypeRecogniser.load(model_path)
-
-    return SignSyncPipeline(
-        recogniser=recogniser,
-        stt=best_available_stt(),  # type: ignore[arg-type]
-        tts=best_available_tts(),  # type: ignore[arg-type]
-    )
+        os.environ["SIGNSYNC_MODEL"] = str(model_path)
+    settings = settings_from_env()
+    if model_path:
+        settings = replace(settings, model=Path(model_path))
+    return pipeline_from_env(settings)
 
 
 def _cmd_serve(args: argparse.Namespace) -> int:

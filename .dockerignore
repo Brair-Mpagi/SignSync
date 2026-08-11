@@ -1,0 +1,40 @@
+# Keep the build context small and, more importantly, keep participant data out of
+# it. Everything sent to the daemon can end up in an image layer, and image layers
+# get cached, pushed and pulled — which makes deletion-on-withdrawal impossible
+# (docs/data-protection.md).
+
+# Participant data. Never in an image, not even a private one.
+data/
+artifacts/
+*.npz
+*.pt
+*.pth
+*.onnx
+
+# Environments and caches
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# Node
+node_modules/
+frontend/node_modules/
+frontend/dist/
+
+# VCS and CI
+.git/
+.github/
+.gitignore
+
+# Editors and OS
+.idea/
+.vscode/
+.DS_Store
+*.swp
