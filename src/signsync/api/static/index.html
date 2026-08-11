@@ -1,0 +1,96 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>SignSync — USL ↔ English</title>
+    <link rel="stylesheet" href="/static/style.css" />
+  </head>
+  <body>
+    <header>
+      <div class="brand">
+        <h1>SignSync</h1>
+        <p>Ugandan Sign Language ↔ English</p>
+      </div>
+      <div id="capabilities" class="capabilities" aria-live="polite"></div>
+    </header>
+
+    <!--
+      The disclaimer is markup, not a dismissible toast. Plan §16.3 positions this
+      as an assistive tool and never a certified interpreter, and a warning the
+      user can close is a warning that is not there.
+    -->
+    <p class="disclaimer" id="disclaimer" role="note"></p>
+
+    <main>
+      <section class="panel" aria-labelledby="mode-b-title">
+        <h2 id="mode-b-title">Mode B — English to sign</h2>
+        <p class="hint">Type English. The avatar signs it, with non-manual markers.</p>
+
+        <form id="speak-form">
+          <label class="sr-only" for="speak-input">English sentence</label>
+          <input
+            id="speak-input"
+            type="text"
+            value="Where is the hospital?"
+            autocomplete="off"
+            required
+          />
+          <button type="submit">Sign it</button>
+        </form>
+
+        <div class="stage">
+          <canvas id="avatar" width="460" height="420" aria-label="Signing avatar"></canvas>
+          <div class="now-signing"><span id="now-signing">—</span></div>
+        </div>
+
+        <div class="controls">
+          <button id="replay" type="button" disabled>Replay</button>
+          <span id="motion-note" class="note"></span>
+        </div>
+
+        <pre id="notation" class="notation" aria-label="Gloss notation"></pre>
+      </section>
+
+      <section class="panel" aria-labelledby="mode-a-title">
+        <h2 id="mode-a-title">Mode A — Sign to English</h2>
+        <p class="hint">
+          Enter recognised glosses. With a camera and a trained model this comes from
+          <code>/ws/sign</code>; the glosses are the same either way.
+        </p>
+
+        <form id="sign-form">
+          <label class="sr-only" for="sign-input">Gloss sequence</label>
+          <input id="sign-input" type="text" value="ME NEED HELP" autocomplete="off" required />
+          <button type="submit">Translate</button>
+        </form>
+
+        <fieldset class="markers">
+          <legend>Non-manual markers</legend>
+          <label><input type="checkbox" value="head_shake" /> head shake (negation)</label>
+          <label><input type="checkbox" value="brow_raise" /> brow raise (yes/no)</label>
+          <label><input type="checkbox" value="brow_furrow" /> brow furrow (wh-)</label>
+        </fieldset>
+
+        <output id="english" class="english">—</output>
+
+        <div class="meta">
+          <div class="confidence">
+            <div class="confidence-bar"><span id="confidence-fill"></span></div>
+            <span id="confidence-label">confidence —</span>
+          </div>
+          <p id="frame-trace" class="trace"></p>
+        </div>
+      </section>
+    </main>
+
+    <ul id="warnings" class="warnings" aria-live="polite"></ul>
+
+    <footer>
+      <span id="latency">latency —</span>
+      <a href="/docs">API docs</a>
+    </footer>
+
+    <script type="module" src="/static/app.js"></script>
+  </body>
+</html>
