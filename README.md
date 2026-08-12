@@ -1,187 +1,268 @@
 # SignSync
 
-**Bidirectional Ugandan Sign Language (USL) ↔ spoken English translation.**
+[![CI](https://github.com/Brair-Mpagi/SignSync/actions/workflows/ci.yml/badge.svg)](https://github.com/Brair-Mpagi/SignSync/actions/workflows/ci.yml)
+[![Python](https://img.shields.io/badge/python-3.10%2B-blue)](https://www.python.org/downloads/)
+[![License](https://img.shields.io/badge/license-MIT-green)](pyproject.toml)
 
-SignSync is the software implementation of the project plan in [docs/plan.md](docs/plan.md). It is
-built around one principle taken from that plan:
+Real-time, two-way translation between **Ugandan Sign Language** and spoken English.
 
-> Do not build a gesture classifier and call it a translator. Build a language system that happens
-> to use vision as one of its inputs and motion as one of its outputs.
+Point a camera at someone signing and get spoken English out. Speak, and a 3D avatar signs back.
+Runs on a laptop, works offline, no GPU required.
 
-Everything here therefore routes through an explicit **semantic intermediate representation**
-(`signsync.translation.semantics`) rather than mapping sign → English word.
+```
+      🤟  signing  ──▶  landmarks ──▶ recognition ──▶ ┐
+                                                      ├──▶  meaning  ──┐
+      🎙️  speech   ──▶  transcript ──▶ parsing  ──────▶ ┘                │
+                                                                       │
+                       ┌───────────────────────────────────────────────┘
+                       │
+                       ├──▶  English sentence  ──▶  🔊  speech
+                       └──▶  USL gloss + markers ──▶ 🤟  3D avatar
+```
 
----
-
-## Status
-
-This repository contains the **engineering scaffold and reference implementation** of the pipeline:
-every stage exists, is wired together, and runs end-to-end offline on synthetic/sample data.
-
-What it does **not** contain, and cannot contain until the community and data work in the plan
-happens:
-
-| Missing | Why | Plan reference |
-|---|---|---|
-| A real USL corpus | No public continuous USL video corpus exists; it must be collected with UNAD/Kyambogo under consent | §9.1, §16 |
-| Trained model weights | Depend on that corpus | §9.2 |
-| A validated USL lexicon/grammar | `src/signsync/resources/usl_lexicon.json` is a **placeholder seed** and must be replaced by linguist-reviewed entries | §6, §11 |
-| Human evaluation results | Requires the Deaf Advisory Board | §15 |
-
-The lexicon and grammar rules shipped here are structurally correct but linguistically provisional.
-**Do not present output from this repository as validated USL** — see
-[docs/limitations.md](docs/limitations.md).
+> **Heads up:** the sign vocabulary and grammar rules that ship here are working placeholders, not
+> reviewed Ugandan Sign Language. See [Project status](#project-status) before showing output to
+> anyone.
 
 ---
 
-## Layout
+## Quick start
 
-The plan's Appendix C structure, mapped onto a `src/` Python package:
+```bash
+git clone https://github.com/Brair-Mpagi/SignSync.git
+cd SignSync
+./run.sh
+```
 
-| plan §22 | here |
-|---|---|
-| `vision/` | [src/signsync/vision/](src/signsync/vision/) — tracking, landmarks, normalisation, features |
-| `recognition/` | [src/signsync/recognition/](src/signsync/recognition/) — temporal models, training, inference, continuous segmentation |
-| `translation/` | [src/signsync/translation/](src/signsync/translation/) — semantic IR, `sign_to_english/`, `english_to_sign/` |
-| `speech/` | [src/signsync/speech/](src/signsync/speech/) — `stt/`, `tts/` adapters |
-| `motion/` | [src/signsync/motion/](src/signsync/motion/) — clip library, blending, inverse kinematics |
-| `avatar/` | [src/signsync/avatar/](src/signsync/avatar/) — rig definition, animation export |
-| `datasets/` | [src/signsync/datasets/](src/signsync/datasets/) — corpus schema, consent registry, splits, augmentation |
-| `evaluation/` | [src/signsync/evaluation/](src/signsync/evaluation/) — automatic metrics, human-evaluation tooling |
-| `api/` | [src/signsync/api/](src/signsync/api/) — FastAPI backend, realtime WebSockets, and the dependency-free browser client |
-| `frontend/` | [frontend/](frontend/) — React + TypeScript + Three.js client (source only, unbuilt) |
-| `infrastructure/` | [infrastructure/](infrastructure/) — Docker, compose, CI |
+That sets up a virtualenv, generates a practice corpus, trains a recogniser, evaluates it, and
+serves the app at **http://localhost:8000**. Takes about a minute; needs nothing but Python 3.10+.
 
-[src/signsync/pipeline.py](src/signsync/pipeline.py) is where the components become a system: the
-three modes of plan §18.3, end-to-end latency accounting against objective O11, and the warnings
-each result carries to the client. [src/signsync/config.py](src/signsync/config.py) is the single
-place `SIGNSYNC_*` environment variables are read, which is how a container is configured.
+Prefer Docker?
 
-Entry points: [run.sh](run.sh) runs the whole system on the host,
-[infrastructure/run-docker.sh](infrastructure/run-docker.sh) runs it in a container, and `make help`
-lists the shortcuts for both.
-
-Recorded data lives in `data/` and is **git-ignored by default**. See
-[docs/data-protection.md](docs/data-protection.md) before putting anything there.
+```bash
+./infrastructure/run-docker.sh --demo
+```
 
 ---
 
-## Install
+## Installation
 
 ```bash
 python3 -m venv .venv && source .venv/bin/activate
-pip install -e ".[dev]"            # core: numpy only
+pip install -e ".[dev,api]"
 ```
 
-Optional extras, each independently installable — the core degrades gracefully without them:
+The core install is deliberately tiny — NumPy and nothing else. Everything heavier is optional, and
+the app degrades gracefully without it:
+
+| Extra | Adds | Enables |
+|---|---|---|
+| `vision` | MediaPipe, OpenCV | Live camera tracking |
+| `models` | PyTorch | Trainable LSTM / TCN / Transformer recognisers |
+| `speech` | Whisper, Piper | Microphone input and spoken output |
+| `api` | FastAPI, Uvicorn | Web server and browser client |
+| `runtime` | ONNX Runtime | Faster CPU inference for deployment |
 
 ```bash
-pip install -e ".[vision]"    # mediapipe + opencv: live camera tracking
-pip install -e ".[models]"    # torch: trainable LSTM/TCN/Transformer recognisers
-pip install -e ".[speech]"    # whisper-class STT + piper TTS
-pip install -e ".[api]"       # fastapi + uvicorn: backend service
-pip install -e ".[runtime]"   # onnxruntime: optimised deployment inference
+pip install -e ".[vision,models,speech]"
 ```
 
-`signsync doctor` reports which capabilities are available in the current environment and what each
-missing one disables.
+Not sure what your machine has? `signsync doctor` lists every capability, what it enables, and what
+happens without it.
 
-## Run the whole thing
+---
 
-One script, from an empty checkout to a served translator:
+## Usage
 
-```bash
-./run.sh                    # set up, build a corpus, train, evaluate, serve on :8000
-./run.sh --help             # stages, options
-./run.sh --no-serve --test  # what CI does
-./run.sh --only serve --model artifacts/recogniser.npz
-```
-
-Or in a container — no compose plugin required:
+### Command line
 
 ```bash
-./infrastructure/run-docker.sh --demo     # build, train a synthetic model, serve
-./infrastructure/run-docker.sh --model artifacts/recogniser.npz
-docker compose -f infrastructure/docker-compose.yml up --build   # if you have compose
-```
+# Translate, either direction
+signsync translate english-to-sign "Where is the hospital?"
+signsync translate sign-to-english ME NEED HELP
 
-See [infrastructure/](infrastructure/) for what a real deployment needs beyond this.
+# Add --trace to see the intermediate meaning representation
+signsync translate english-to-sign "I do not understand" --trace
 
-## Run the stages individually
-
-Everything below works offline with only the core dependency installed.
-
-```bash
-signsync doctor                                     # what this machine can do
-
-# Build a synthetic corpus, train on it, and evaluate on held-out signers.
-signsync corpus build-synthetic data/samples/demo --signers 8
-signsync corpus stats data/samples/demo             # consent + diversity report
-signsync train data/samples/demo --out artifacts/recogniser.npz
-signsync evaluate data/samples/demo artifacts/recogniser.npz
-
-# Translate in either direction.
-signsync translate english-to-sign "Where is the hospital?" --trace
-signsync translate sign-to-english ME NEED HELP --trace
-
-# Run one exchange through the whole pipeline.
-signsync demo speech-to-sign --text "I do not understand"
+# Run a full exchange through the pipeline
+signsync demo speech-to-sign --text "I need help"
 signsync demo sign-to-speech --synthetic --model artifacts/recogniser.npz
 
-# Serve the API and the browser client.
-signsync serve --model artifacts/recogniser.npz     # http://localhost:8000
+# Serve the API and browser client
+signsync serve --model artifacts/recogniser.npz
 ```
 
-`signsync evaluate` exits non-zero until a certified human evaluation round exists. That is
-deliberate — see below.
+### Training your own recogniser
 
-## Two things the code refuses to do
+```bash
+signsync corpus build-synthetic data/samples/demo --signers 8
+signsync corpus stats  data/samples/demo          # consent + diversity report
+signsync train         data/samples/demo --out artifacts/recogniser.npz
+signsync evaluate      data/samples/demo artifacts/recogniser.npz
+```
 
-Most of this repository is ordinary engineering. Two behaviours are not, and they are the reason
-several design decisions look inconvenient.
+Splits are always by signer, never by clip — so the accuracy you see is accuracy on people the
+model has never met.
 
-**It will not use a clip without consent.** `datasets.consent` gates every load. Consent is a set
-of scopes rather than a boolean, an unlisted scope is denied, withdrawal is retroactive, and
-retention expiry removes clips from loading. The sample corpus ships with one withdrawn signer and
-one lapsed retention so any code path that ignores consent fails against the fixture instead of in
-production. See [docs/data-protection.md](docs/data-protection.md).
+### HTTP API
 
-**It will not call itself successful on automatic metrics.** `signsync evaluate` prints 100%
-accuracy on the synthetic corpus and still reports that the result supports no claim, because plan
-§15 makes human evaluation mandatory and plan §19 makes the Deaf community's verdict decisive. A
-round whose panel lacks Deaf evaluators cannot be certified, and Deaf panellists' scores are
-reported separately so a high aggregate cannot average their verdict away.
+Start the server, then:
 
-## Design notes
+| Method | Endpoint | Purpose |
+|---|---|---|
+| `GET` | `/health` | Status, capabilities, active warnings |
+| `POST` | `/api/sign-to-english` | Glosses → English (+ optional speech) |
+| `POST` | `/api/english-to-sign` | English → glosses + avatar animation |
+| `POST` | `/api/speech-to-sign` | Transcript → avatar animation |
+| `GET` | `/api/rig` | Avatar skeleton definition |
+| `GET` | `/api/lexicon` | Vocabulary and validation state |
+| `GET` | `/api/metrics` | Per-stage latency |
+| `WS` | `/ws/sign` | Stream landmarks in, translations out |
+| `WS` | `/ws/speak` | Stream text in, animations out |
 
-- **Landmarks, not pixels.** Frames become normalised `(x, y, z)` landmark vectors
-  (`vision.normalise`) so models train on a modest corpus, run on CPU, and generalise across skin
-  tone, lighting and clothing — plan §8.1.
-- **Signer-independent by construction.** `datasets.splits` refuses to produce a split where a
-  signer appears on both sides; the failure mode it prevents (§14, Risk 2) is silent and fatal.
-- **Consent is enforced in code, not policy.** `datasets.consent` gates every clip; withdrawn or
-  expired consent removes clips from loading, not just from a spreadsheet — plan §16.
-- **Non-manual markers are grammar.** They ride through the whole pipeline as first-class fields on
-  the semantic frame and as animation channels on the rig, because dropping them changes sentence
-  meaning — plan §8.7.
-- **Optional heavy dependencies.** Every third-party model runtime sits behind an adapter with a
-  working offline fallback, so the pipeline is demonstrable in a clinic with no internet — plan §17.
-  CI proves it by running the whole suite in an environment where `torch`, `mediapipe` and `cv2`
-  are asserted to be absent.
-- **Handedness is canonicalised.** A left-handed signer produces the mirror image of the same sign,
-  so normalisation emits dominant/non-dominant channels rather than right/left. Without it, every
-  model has to learn each sign twice — see the commit history for what that cost in accuracy.
-- **Nothing is silently approximated.** A gloss with no motion clip is reported, not invented. A
-  word with no sign is reported, not dropped. A recogniser below threshold abstains rather than
-  guessing. The client is expected to show all three.
+```bash
+curl -X POST http://localhost:8000/api/english-to-sign \
+  -H 'Content-Type: application/json' \
+  -d '{"text": "Where is the hospital?"}'
+```
+
+```json
+{
+  "glosses": ["HOSPITAL", "WHERE"],
+  "notation": "______________wh\nHOSPITAL WHERE",
+  "markers": [{ "marker": "brow_furrow", "scope": ["HOSPITAL", "WHERE"] }],
+  "animation": { "fps": 30.0, "frames": ["… 91 frames of joint rotations …"] },
+  "generated": ["HOSPITAL", "WHERE"],
+  "missing": [],
+  "warnings": [
+    { "code": "unvalidated_lexicon", "message": "The sign lexicon has not been reviewed…" },
+    { "code": "generated_motion", "message": "Some signs were rendered from generated motion…" }
+  ]
+}
+```
+
+The question word moves to the end and the brow-furrow marker scopes the whole clause — that's USL
+grammar, not a formatting quirk. Note the `warnings`: every response tells you what to distrust
+about it. Interactive docs at `/docs`.
+
+### Docker
+
+```bash
+./infrastructure/run-docker.sh --demo                       # build + run, trains a demo model
+./infrastructure/run-docker.sh --model artifacts/model.npz  # run with your own model
+./infrastructure/run-docker.sh --detach                     # background
+docker compose -f infrastructure/docker-compose.yml up      # if you use compose
+```
+
+Configure with environment variables — `SIGNSYNC_MODEL`, `SIGNSYNC_LEXICON`, `SIGNSYNC_CLIPS`,
+`SIGNSYNC_VOICE`, `SIGNSYNC_MIN_CONFIDENCE`, `SIGNSYNC_REQUIRE_MODEL`. Full table in
+[infrastructure/README.md](infrastructure/README.md).
+
+---
+
+## How it works
+
+Sign language is not English on the hands. Word order, negation and question marking all work
+differently, so translating sign-to-word produces nonsense in both directions. Everything here
+routes through a **semantic frame** instead — who did what to whom, what kind of utterance it is,
+whether it is negated — and each language is generated from that.
+
+```
+glosses ──▶ parse ──▶ ┌──────────────┐ ──▶ realise ──▶ English
+                      │ SemanticFrame│
+English ──▶ parse ──▶ └──────────────┘ ──▶ generate ──▶ glosses + markers
+```
+
+A few consequences worth knowing:
+
+- **Landmarks, not pixels.** Video becomes ~40 tracked points per frame, so models are small, run on
+  CPU, and generalise across skin tone, lighting and clothing.
+- **Facial expression is grammar.** Brow position marks questions, head shake marks negation. These
+  travel through the whole pipeline as first-class data and drive the avatar's face.
+- **Left-handed signers are handled.** Signing space is canonicalised to dominant/non-dominant, so a
+  left-handed signer isn't a whole second vocabulary to learn.
+- **Nothing is silently faked.** No sign for a word? Reported. No motion clip? Reported. Recogniser
+  unsure? It abstains instead of guessing. Every API response carries a `warnings` array, and the
+  clients display it.
+
+---
+
+## Project structure
+
+```
+src/signsync/
+├── vision/         camera → landmarks → normalised features
+├── recognition/    temporal models, training, continuous segmentation
+├── translation/    semantic frame, both directions
+├── speech/         speech-to-text and text-to-speech adapters
+├── motion/         gloss → avatar motion, blending, inverse kinematics
+├── avatar/         skeleton rig and animation format
+├── datasets/       corpus schema, consent, signer-independent splits
+├── evaluation/     metrics and human-evaluation tooling
+├── api/            FastAPI server + zero-dependency browser client
+├── pipeline.py     ties it all together
+└── config.py       environment configuration
+
+frontend/           React + TypeScript + Three.js client
+infrastructure/     Dockerfile, compose, deployment notes
+docs/               plan, limitations, data protection
+```
+
+---
+
+## Development
+
+```bash
+make dev        # install with dev tooling
+make test       # pytest  (397 tests)
+make lint       # ruff
+make typecheck  # mypy
+make check      # all three, same as CI
+```
+
+The test suite runs with only NumPy installed — CI actively asserts that PyTorch, MediaPipe and
+OpenCV are *absent* in the core job, so the offline path can't quietly rot.
+
+---
+
+## Project status
+
+Working end-to-end, on synthetic data. Every stage is implemented and wired together, and the whole
+thing runs offline. What it needs before it can translate real USL:
+
+- [ ] **A USL video corpus.** No public one exists. It has to be recorded with Deaf signers, under
+      consent, with UNAD and Kyambogo University.
+- [ ] **A reviewed lexicon and grammar.** The shipped `usl_lexicon.json` is a placeholder built to
+      exercise the pipeline. `Lexicon.is_validated` stays `False` until a linguist signs it off.
+- [ ] **Trained weights.** Waiting on the corpus.
+- [ ] **Human evaluation.** `signsync evaluate` reports 100% accuracy on synthetic data and *still*
+      refuses to call that success — automatic metrics can't tell you whether a translation means
+      the right thing. Only Deaf evaluators can.
+
+Full detail in [docs/limitations.md](docs/limitations.md). The project plan this implements is
+[docs/plan.md](docs/plan.md).
+
+**This is an assistive tool, not an interpreter.** Don't rely on it in medical, legal, or
+safety-critical situations.
+
+---
 
 ## Contributing
 
-See [CONTRIBUTING.md](CONTRIBUTING.md). Changes affecting sign quality, lexicon entries, grammar
-rules or avatar motion require review by a fluent signer — that is a process rule, not a suggestion.
+Contributions welcome — see [CONTRIBUTING.md](CONTRIBUTING.md).
 
-## Licence
+One rule that isn't negotiable by pull request: **changes to vocabulary, grammar, or avatar motion
+need review by a fluent signer.** An engineer can't self-approve how a sign looks.
 
-MIT ([LICENSE](LICENSE)). Corpus data is **not** covered by this licence; its terms are set
-by the consent agreements with participating signers and by the custodianship arrangement in plan
-§17.
+Recorded participant data never goes in the repo. `data/` is git-ignored; read
+[docs/data-protection.md](docs/data-protection.md) first.
+
+---
+
+## License
+
+MIT, as declared in [pyproject.toml](pyproject.toml). A `LICENSE` file has not been added to the
+repository yet.
+
+Corpus data is *not* covered by it. Recordings are governed by the consent agreements signed with
+each participant.
