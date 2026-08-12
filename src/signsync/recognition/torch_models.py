@@ -23,12 +23,19 @@ from __future__ import annotations
 
 import math
 from dataclasses import dataclass
+from typing import TYPE_CHECKING
 
 from ..capabilities import require
 from ..errors import SignSyncError
 
 torch = require("torch", feature="trainable temporal models")
-nn = torch.nn
+
+if TYPE_CHECKING:
+    # `nn = torch.nn` is a runtime alias and a type checker cannot see through it,
+    # so every `nn.Module` annotation below would be an undefined name.
+    from torch import nn
+else:
+    nn = torch.nn
 
 __all__ = [
     "ModelConfig",
@@ -75,7 +82,7 @@ class _MaskedMeanPool(nn.Module):
     output depend on what else happened to be in the batch.
     """
 
-    def forward(self, x, mask=None):  # type: ignore[no-untyped-def]
+    def forward(self, x, mask=None):
         if mask is None:
             return x.mean(dim=1)
         mask = mask.unsqueeze(-1).to(x.dtype)
@@ -105,7 +112,7 @@ class LSTMRecogniser(nn.Module):
             nn.Linear(out_dim, config.n_classes),
         )
 
-    def forward(self, x, mask=None):  # type: ignore[no-untyped-def]
+    def forward(self, x, mask=None):
         encoded, _ = self.rnn(x)
         return self.head(self.pool(encoded, mask))
 
@@ -126,7 +133,7 @@ class _TemporalBlock(nn.Module):
         )
         self.activation = nn.ReLU()
 
-    def forward(self, x):  # type: ignore[no-untyped-def]
+    def forward(self, x):
         return self.activation(x + self.net(x))
 
 
@@ -155,7 +162,7 @@ class TCNRecogniser(nn.Module):
             nn.Linear(config.hidden_dim, config.n_classes),
         )
 
-    def forward(self, x, mask=None):  # type: ignore[no-untyped-def]
+    def forward(self, x, mask=None):
         h = self.project(x.transpose(1, 2))
         for block in self.blocks:
             h = block(h)
@@ -178,7 +185,7 @@ class _PositionalEncoding(nn.Module):
         encoding[:, 1::2] = torch.cos(position * div[: encoding[:, 1::2].shape[1]])
         self.register_buffer("encoding", encoding.unsqueeze(0))
 
-    def forward(self, x):  # type: ignore[no-untyped-def]
+    def forward(self, x):
         return x + self.encoding[:, : x.size(1)]
 
 
@@ -206,7 +213,7 @@ class TransformerRecogniser(nn.Module):
             nn.Linear(config.hidden_dim, config.n_classes),
         )
 
-    def forward(self, x, mask=None):  # type: ignore[no-untyped-def]
+    def forward(self, x, mask=None):
         h = self.positions(self.project(x))
         padding_mask = None if mask is None else ~mask.bool()
         h = self.encoder(h, src_key_padding_mask=padding_mask)
@@ -258,7 +265,7 @@ class MultiStreamRecogniser(nn.Module):
             nn.Linear(config.hidden_dim, config.n_classes),
         )
 
-    def forward(self, x, mask=None):  # type: ignore[no-untyped-def]
+    def forward(self, x, mask=None):
         pooled = []
         for encoder, block in zip(self.encoders, self.slices, strict=True):
             encoded, _ = encoder(x[:, :, block])
@@ -266,7 +273,7 @@ class MultiStreamRecogniser(nn.Module):
         return self.head(torch.cat(pooled, dim=-1))
 
 
-def build_model(name: str, config: ModelConfig, **kwargs):  # type: ignore[no-untyped-def]
+def build_model(name: str, config: ModelConfig, **kwargs):
     """Construct a model by name. See :data:`MODEL_NAMES`."""
     key = name.lower()
     if key in ("lstm", "gru"):

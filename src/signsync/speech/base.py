@@ -124,7 +124,9 @@ class SpeechResult:
 
     @property
     def duration(self) -> float:
-        return self.audio.duration if self.is_audible else self.estimated_duration
+        if self.audio is not None and len(self.audio) > 0:
+            return self.audio.duration
+        return self.estimated_duration
 
 
 @runtime_checkable

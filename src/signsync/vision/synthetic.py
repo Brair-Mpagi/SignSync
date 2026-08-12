@@ -20,6 +20,7 @@ from __future__ import annotations
 
 import hashlib
 from dataclasses import dataclass
+from typing import Any
 
 import numpy as np
 
@@ -92,7 +93,7 @@ class SignerStyle:
         )
 
 
-def _sign_parameters(gloss: str) -> dict[str, object]:
+def _sign_parameters(gloss: str) -> dict[str, Any]:
     """Stable motion signature for a gloss."""
     rng = np.random.default_rng(stable_seed("gloss", gloss.upper()))
     return {
@@ -139,29 +140,29 @@ class SignSignature:
 def sign_signature(gloss: str, *, n_frames: int | None = None) -> SignSignature:
     """The motion signature for a gloss."""
     params = _sign_parameters(gloss)
-    n = n_frames or int(params["frames"])  # type: ignore[arg-type]
+    n = n_frames or int(params["frames"])
     return SignSignature(
         gloss=gloss.upper(),
         wrist_path=_trajectory(params, n).astype(np.float32),
         curls=np.asarray(params["curls"], dtype=np.float32),
-        spread=float(params["spread"]),  # type: ignore[arg-type]
+        spread=float(params["spread"]),
         two_handed=bool(params["two_handed"]),
-        brow=float(params["brow"]),  # type: ignore[arg-type]
-        head_tilt=float(params["head_tilt"]),  # type: ignore[arg-type]
+        brow=float(params["brow"]),
+        head_tilt=float(params["head_tilt"]),
         n_frames=n,
     )
 
 
-def _trajectory(params: dict[str, object], n: int) -> np.ndarray:
+def _trajectory(params: dict[str, Any], n: int) -> np.ndarray:
     """Wrist path in body-frame units, shape ``(n, 3)``."""
     start = np.asarray(params["start"], dtype=np.float64)
     end = np.asarray(params["end"], dtype=np.float64)
-    amp = float(params["amplitude"])  # type: ignore[arg-type]
+    amp = float(params["amplitude"])
     path = str(params["path"])
     t = np.linspace(0.0, 1.0, n)
 
     if path == "repeat":
-        cycles = int(params["repeats"])  # type: ignore[arg-type]
+        cycles = int(params["repeats"])
         phase = 0.5 - 0.5 * np.cos(2 * np.pi * cycles * t)
         base = start[None, :] + phase[:, None] * (end - start)[None, :]
         depth = np.zeros(n)
@@ -175,7 +176,7 @@ def _trajectory(params: dict[str, object], n: int) -> np.ndarray:
         base[:, 1] -= amp * np.sin(np.pi * t)
         depth = np.zeros(n)
     elif path == "tap":
-        phase = np.abs(np.sin(np.pi * t * int(params["repeats"])))  # type: ignore[arg-type]
+        phase = np.abs(np.sin(np.pi * t * int(params["repeats"])))
         base = start[None, :] + (0.25 * phase)[:, None] * (end - start)[None, :]
         depth = -0.2 * phase
     else:  # line, with ease-in-ease-out so velocity is not a step function
@@ -232,7 +233,7 @@ def synthetic_sign(
         stable_seed("clip", gloss, style.signer_id) if seed is None else seed
     )
 
-    frame_count = int(params["frames"])  # type: ignore[arg-type]
+    frame_count = int(params["frames"])
     n = n_frames or max(8, int(round(frame_count / style.speed)))
     scale = style.shoulder_width
     cx, cy = style.centre
@@ -255,7 +256,7 @@ def synthetic_sign(
         pose[PoseIndex.LEFT_HIP] = [cx + scale * 0.4, cy + scale * 1.6, 0.0]
         pose[PoseIndex.RIGHT_HIP] = [cx - scale * 0.4, cy + scale * 1.6, 0.0]
 
-        head_tilt = float(params["head_tilt"]) * np.sin(np.pi * phase)  # type: ignore[arg-type]
+        head_tilt = float(params["head_tilt"]) * np.sin(np.pi * phase)
         head_y = cy - scale * 0.75
         pose[PoseIndex.NOSE] = [cx + head_tilt * scale * 0.2, head_y, -0.02]
         pose[PoseIndex.LEFT_EYE] = [cx + scale * 0.12, head_y - scale * 0.12, 0.0]
@@ -288,7 +289,7 @@ def synthetic_sign(
         pose[PoseIndex.RIGHT_THUMB] = right_wrist + [-0.02, -0.01, 0.0]
 
         curls = np.asarray(params["curls"], dtype=np.float64)
-        spread = float(params["spread"])  # type: ignore[arg-type]
+        spread = float(params["spread"])
         shape = _hand_points(curls, spread, phase) * scale
         right_hand = shape + dominant_wrist
         left_hand = shape * [-1, 1, 1] + other_wrist
@@ -296,7 +297,7 @@ def synthetic_sign(
         face = _face_points(
             centre=(pose[PoseIndex.NOSE][0], head_y),
             scale=scale,
-            brow=float(params["brow"]),  # type: ignore[arg-type]
+            brow=float(params["brow"]),
             mouth=0.3 + 0.2 * np.sin(2 * np.pi * phase),
         )
 

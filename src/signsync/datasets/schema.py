@@ -308,7 +308,7 @@ class ClipRecord:
             duration=float(data["duration"]),
             fps=float(data.get("fps", 30.0)),
             domain=data.get("domain", "general"),
-            boundaries=tuple(tuple(b) for b in data.get("boundaries", [])),  # type: ignore[misc]
+            boundaries=tuple(tuple(b) for b in data.get("boundaries", [])),
             markers=tuple(NonManualMarker.from_dict(m) for m in data.get("markers", [])),
             hamnosys=tuple(data.get("hamnosys", [])),
             conditions=RecordingConditions.from_dict(data.get("conditions", {})),

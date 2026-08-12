@@ -173,7 +173,7 @@ class PrototypeRecogniser:
         return np.sqrt(np.maximum(a2 + b2 - 2 * cross, 0.0))
 
     def save(self, path: str | Path) -> Path:
-        if self._prototypes is None:
+        if self._prototypes is None or self._mean is None or self._scale is None:
             raise SignSyncError("cannot save an unfitted recogniser")
         path = Path(path)
         path.parent.mkdir(parents=True, exist_ok=True)

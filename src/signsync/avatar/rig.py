@@ -24,6 +24,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 
 import numpy as np
+import numpy.typing as npt
 
 from ..errors import SignSyncError
 
@@ -96,7 +97,7 @@ def quat_normalise(q: np.ndarray) -> np.ndarray:
     return (np.asarray(q, dtype=np.float32) / norm).astype(np.float32)
 
 
-def quat_from_axis_angle(axis: np.ndarray, angle: float) -> np.ndarray:
+def quat_from_axis_angle(axis: npt.ArrayLike, angle: float) -> np.ndarray:
     axis = np.asarray(axis, dtype=np.float64)
     norm = float(np.linalg.norm(axis))
     if norm < _EPS:
@@ -157,7 +158,7 @@ def quat_to_matrix(q: np.ndarray) -> np.ndarray:
     )
 
 
-def quat_between(source: np.ndarray, target: np.ndarray) -> np.ndarray:
+def quat_between(source: npt.ArrayLike, target: npt.ArrayLike) -> np.ndarray:
     """Shortest rotation taking ``source`` onto ``target``."""
     a = np.asarray(source, dtype=np.float64)
     b = np.asarray(target, dtype=np.float64)

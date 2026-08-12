@@ -185,7 +185,7 @@ def _cmd_translate(args: argparse.Namespace) -> int:
     return 0
 
 
-def _build_pipeline(model_path: str | None):  # type: ignore[no-untyped-def]
+def _build_pipeline(model_path: str | None):
     """Assemble a pipeline from the environment, with ``--model`` taking precedence.
 
     Same code path the container uses, so a deployment debugged with ``signsync

@@ -81,12 +81,13 @@ class CommandTTS:
     """
 
     def __init__(self, executable: str | None = None, *, words_per_minute: int = 150) -> None:
-        self.executable = executable or _find_command()
-        if self.executable is None:
+        found = executable or _find_command()
+        if found is None:
             raise SignSyncError(
                 "no OS speech command found (looked for espeak-ng, espeak, say). "
                 'Install one, or use the "speech" extra for a local neural voice.'
             )
+        self.executable: str = found
         self.words_per_minute = words_per_minute
 
     @property

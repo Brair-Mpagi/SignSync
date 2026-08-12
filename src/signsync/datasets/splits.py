@@ -37,7 +37,7 @@ class Split:
     def __getitem__(self, name: str) -> tuple[str, ...]:
         if name not in SPLIT_NAMES:
             raise KeyError(f"unknown split {name!r}; expected one of {SPLIT_NAMES}")
-        return getattr(self, name)  # type: ignore[no-any-return]
+        return getattr(self, name)
 
     def sizes(self) -> dict[str, int]:
         return {name: len(self[name]) for name in SPLIT_NAMES}

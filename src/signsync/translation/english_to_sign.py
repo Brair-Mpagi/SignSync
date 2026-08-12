@@ -30,7 +30,7 @@ import re
 from dataclasses import dataclass
 
 from ..datasets.schema import MarkerType, NonManualMarker
-from .lexicon import Lexicon, default_lexicon
+from .lexicon import LexEntry, Lexicon, default_lexicon
 from .semantics import (
     Aspect,
     Entity,
@@ -200,7 +200,7 @@ def analyse_english(text: str, lexicon: Lexicon | None = None) -> SemanticFrame:
     return builder.build()
 
 
-def _match_tokens(lowered: str, lex: Lexicon) -> list[tuple[str, object]]:
+def _match_tokens(lowered: str, lex: Lexicon) -> list[tuple[str, LexEntry | None]]:
     """Tokenise, matching multi-word signs before single words.
 
     "thank you" is one sign; matching word by word would emit THANK-YOU's parts as
@@ -212,7 +212,7 @@ def _match_tokens(lowered: str, lex: Lexicon) -> list[tuple[str, object]]:
             text = text.replace(phrase, phrase.replace(" ", "_"))
 
     tokens = re.findall(r"[a-z'_]+", text)
-    matched: list[tuple[str, object]] = []
+    matched: list[tuple[str, LexEntry | None]] = []
     for token in tokens:
         surface = token.replace("_", " ")
         matched.append((surface, lex.lookup_english(surface)))

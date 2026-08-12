@@ -76,7 +76,7 @@ class Vocabulary:
         return [self.gloss(int(i)) for i in indices]
 
     @classmethod
-    def from_corpus(cls, corpus) -> Vocabulary:  # type: ignore[no-untyped-def]
+    def from_corpus(cls, corpus) -> Vocabulary:
         return cls(tuple(corpus.vocabulary()))
 
     def save(self, path: str | Path) -> Path:

@@ -268,7 +268,7 @@ def _realise_clause(
     patient: Entity | None,
     location: Entity | None,
     attribute: Entity | None,
-    predicate: object | None,
+    predicate: LexEntry | None,
 ) -> str:
     subject = _subject_word(agent)
     parts: list[str] = []
@@ -293,10 +293,10 @@ def _realise_clause(
             return f"{subject} {be} at {_noun_phrase(location)}"
         return subject or (_noun_phrase(patient) if patient else "")
 
-    entry = predicate  # type: ignore[assignment]
-    verb = entry.primary_english  # type: ignore[union-attr]
+    # The `predicate is None` branch above returned, so this is a real entry.
+    verb = predicate.primary_english
 
-    if entry.pos == "adjective":  # type: ignore[union-attr]
+    if predicate.pos == "adjective":
         be = "am" if subject == "I" else ("is" if subject not in {"you", "we"} else "are")
         negation = " not" if frame.is_negative else ""
         return f"{subject} {be}{negation} {verb}".strip()
@@ -317,7 +317,7 @@ def _realise_content_question(
     agent: Entity | None,
     patient: Entity | None,
     location: Entity | None,
-    predicate: object | None,
+    predicate: LexEntry | None,
 ) -> str:
     """Front the question word, as English requires and USL does not."""
     wh_entry = lex.get(frame.question_word) if frame.question_word else None
@@ -329,7 +329,7 @@ def _realise_content_question(
         if location is not None and not subject_phrase:
             subject_phrase = _noun_phrase(location)
         if predicate is not None and subject_phrase:
-            verb = predicate.primary_english  # type: ignore[union-attr]
+            verb = predicate.primary_english
             auxiliary = "did" if frame.tense is Tense.PAST else "does"
             if subject_phrase in {"I", "you", "we"}:
                 auxiliary = "did" if frame.tense is Tense.PAST else "do"
@@ -347,7 +347,7 @@ def _realise_content_question(
             return f"{wh} is {_noun_phrase(topic)}"
         return wh
 
-    verb = predicate.primary_english if predicate is not None else "do"  # type: ignore[union-attr]
+    verb = predicate.primary_english if predicate is not None else "do"
     auxiliary = "did" if frame.tense is Tense.PAST else (
         "do" if subject in {"I", "you", "we"} or not subject else "does"
     )

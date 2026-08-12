@@ -389,13 +389,15 @@ def normalise_sequence(
             sequence.face[t], bool(sequence.present[t, Channel.FACE]), head[t]
         )
 
-    present = sequence.present.copy()
+    present_mask = sequence.present.copy()
     mirror = canonicalise_handedness and dominant == "left"
 
     if dominant == "left":
         dominant_local, weak_local = left_local, right_local
         dominant_wrist, weak_wrist = left_wrist, right_wrist
-        present = present[:, [Channel.POSE, Channel.RIGHT_HAND, Channel.LEFT_HAND, Channel.FACE]]
+        present_mask = present_mask[
+            :, [Channel.POSE, Channel.RIGHT_HAND, Channel.LEFT_HAND, Channel.FACE]
+        ]
     else:
         dominant_local, weak_local = right_local, left_local
         dominant_wrist, weak_wrist = right_wrist, left_wrist
@@ -420,7 +422,7 @@ def normalise_sequence(
         weak_wrist=weak_wrist,
         face=face,
         head_pose=head,
-        present=present,
+        present=present_mask,
         fps=sequence.fps,
         dominant=dominant,
         mirrored=mirror,

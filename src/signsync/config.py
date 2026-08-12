@@ -112,7 +112,7 @@ def settings_from_env() -> Settings:
     )
 
 
-def load_recogniser(path: Path):  # type: ignore[no-untyped-def]
+def load_recogniser(path: Path):
     """Load a recogniser, choosing the backend from the file extension."""
     if path.suffix == ".npz":
         from .recognition.prototype import PrototypeRecogniser
@@ -128,7 +128,7 @@ def load_recogniser(path: Path):  # type: ignore[no-untyped-def]
     )
 
 
-def pipeline_from_env(settings: Settings | None = None):  # type: ignore[no-untyped-def]
+def pipeline_from_env(settings: Settings | None = None):
     """Build a :class:`~signsync.pipeline.SignSyncPipeline` from the environment."""
     from .motion.library import RecordedLibrary
     from .pipeline import SignSyncPipeline
