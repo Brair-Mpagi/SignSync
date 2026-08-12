@@ -160,6 +160,7 @@ def _trajectory(params: dict[str, Any], n: int) -> np.ndarray:
     amp = float(params["amplitude"])
     path = str(params["path"])
     t = np.linspace(0.0, 1.0, n)
+    depth: np.ndarray
 
     if path == "repeat":
         cycles = int(params["repeats"])
@@ -202,7 +203,7 @@ def _hand_points(curls: np.ndarray, spread: float, phase: float) -> np.ndarray:
 
     for f, chain in enumerate(finger_chains):
         direction = np.array([np.sin(base_angles[f]), -np.cos(base_angles[f]), 0.0])
-        point = np.zeros(3)
+        point: np.ndarray = np.zeros(3)
         curl = float(curls[f]) * (0.9 + 0.1 * np.sin(2 * np.pi * phase))
         for j, idx in enumerate(chain):
             angle = curl * (j + 1) / len(chain)
@@ -267,7 +268,7 @@ def synthetic_sign(
         dominant_wrist = np.array(
             [cx + traj[t, 0] * scale * 0.9, cy + traj[t, 1] * scale * 0.9, traj[t, 2] * scale]
         )
-        other_wrist = dominant_wrist.copy()
+        other_wrist: np.ndarray = dominant_wrist.copy()
         other_wrist[0] = 2 * cx - other_wrist[0]
         if not params["two_handed"]:
             other_wrist = np.array([cx - scale * 0.6, cy + scale * 1.2, 0.0])

@@ -100,6 +100,15 @@ ignore = ["B008"]
 # type check silently covers nothing. Runtime support for 3.10 is still verified
 # by the pytest matrix in CI, which is the check that actually exercises it.
 python_version = "3.12"
+
+# The CI matrix runs this on both 3.10 and 3.12, and those resolve DIFFERENT NumPy
+# versions — 2.5 requires >=3.12, so the 3.10 job gets 2.2.x. The two stub
+# generations disagree about array shapes: 2.2 infers a concrete rank from
+# np.zeros((n, k, 3)) and rejects a later reassignment from fancy indexing, while
+# 2.5 returns Any there and says nothing. Code must satisfy both, and checking
+# against only the newer one will pass locally and fail in CI. To reproduce the
+# strict side:  pip install 'numpy==2.2.6' && mypy
+
 packages = ["signsync"]
 mypy_path = "src"
 ignore_missing_imports = true

@@ -360,13 +360,18 @@ def normalise_sequence(
     ]
     fallback = _robust_reference(per_frame)
 
-    body = np.zeros((n, len(kept), 3), dtype=np.float32)
-    left_local = np.zeros((n, sequence.left_hand.shape[1], 3), dtype=np.float32)
-    right_local = np.zeros_like(left_local)
-    left_wrist = np.zeros((n, 3), dtype=np.float32)
-    right_wrist = np.zeros((n, 3), dtype=np.float32)
-    face = np.zeros_like(sequence.face, dtype=np.float32)
-    head = np.zeros((n, 3), dtype=np.float32)
+    # Annotated rather than inferred: newer NumPy stubs read a concrete rank out of
+    # np.zeros((n, k, 3)), and the mirroring step below reassigns these from fancy
+    # indexing, whose result type carries no rank. The arrays keep their shapes at
+    # runtime — this only stops the checker pinning a rank it cannot follow through
+    # the reassignment.
+    body: np.ndarray = np.zeros((n, len(kept), 3), dtype=np.float32)
+    left_local: np.ndarray = np.zeros((n, sequence.left_hand.shape[1], 3), dtype=np.float32)
+    right_local: np.ndarray = np.zeros_like(left_local)
+    left_wrist: np.ndarray = np.zeros((n, 3), dtype=np.float32)
+    right_wrist: np.ndarray = np.zeros((n, 3), dtype=np.float32)
+    face: np.ndarray = np.zeros_like(sequence.face, dtype=np.float32)
+    head: np.ndarray = np.zeros((n, 3), dtype=np.float32)
 
     for t in range(n):
         frame_ref = (per_frame[t] or fallback) if reference == "per_frame" else fallback

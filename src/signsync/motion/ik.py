@@ -102,7 +102,7 @@ def solve_two_bone(
     # Bend axis: perpendicular to the aim direction, biased towards the pole so the
     # elbow ends up where an elbow belongs.
     hint = np.asarray(pole, dtype=np.float64) if pole is not None else np.array([0.0, 0.0, -1.0])
-    axis = np.cross(direction, hint)
+    axis: np.ndarray = np.cross(direction, hint)
     if np.linalg.norm(axis) < _EPS:
         axis = np.cross(direction, [1.0, 0.0, 0.0])
         if np.linalg.norm(axis) < _EPS:
