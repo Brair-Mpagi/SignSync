@@ -9,7 +9,8 @@ description = "Bidirectional Ugandan Sign Language <-> spoken English translatio
 readme = "README.md"
 requires-python = ">=3.10"
 license = { text = "MIT" }
-authors = [{ name = "SignSync contributors" }]
+authors = [{ name = "Brair Mpagi", email = "brairmpagi45@gmail.com" }]
+maintainers = [{ name = "Brair Mpagi", email = "brairmpagi45@gmail.com" }]
 keywords = ["sign-language", "usl", "uganda", "translation", "accessibility"]
 
 # Core runtime: deliberately small so the pipeline runs on a mid-range laptop

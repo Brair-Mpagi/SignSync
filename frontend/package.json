@@ -4,6 +4,8 @@
   "private": true,
   "type": "module",
   "description": "React + Three.js client for SignSync (Ugandan Sign Language <-> English)",
+  "author": "Brair Mpagi <brairmpagi45@gmail.com>",
+  "license": "MIT",
   "scripts": {
     "dev": "vite",
     "build": "tsc --noEmit && vite build",
