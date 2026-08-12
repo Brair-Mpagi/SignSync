@@ -70,7 +70,8 @@ def test_only_restricts_to_one_stage():
     """`--only corpus` must not also run the demo or start a server."""
     source = RUN_SH.read_text(encoding="utf-8")
     only_block = source.split("--only)")[1].split("shift ;;")[0]
-    for flag in ("DO_SETUP=0", "DO_CORPUS=0", "DO_TRAIN=0", "DO_EVALUATE=0", "DO_SERVE=0", "DO_DEMO=0"):
+    flags = ("DO_SETUP=0", "DO_CORPUS=0", "DO_TRAIN=0", "DO_EVALUATE=0", "DO_SERVE=0", "DO_DEMO=0")
+    for flag in flags:
         assert flag in only_block, f"--only does not clear {flag}"
 
 
@@ -116,7 +117,9 @@ exit 0
     signsync.chmod(0o755)
 
     uvicorn = bin_dir / "uvicorn"
-    uvicorn.write_text(f'#!/usr/bin/env sh\necho "uvicorn $*" >> "{log}"\nexit 0\n', encoding="utf-8")
+    uvicorn.write_text(
+        f'#!/usr/bin/env sh\necho "uvicorn $*" >> "{log}"\nexit 0\n', encoding="utf-8"
+    )
     uvicorn.chmod(0o755)
 
     return bin_dir, log
@@ -186,7 +189,9 @@ def test_a_failed_bootstrap_is_reported_as_a_bootstrap_failure(stub_bin, tmp_pat
     """Not as "mount a model" — which would send the operator down the wrong path."""
     bin_dir, log = stub_bin
     broken = bin_dir / "signsync"
-    broken.write_text(f'#!/usr/bin/env sh\necho "signsync $*" >> "{log}"\nexit 0\n', encoding="utf-8")
+    broken.write_text(
+        f'#!/usr/bin/env sh\necho "signsync $*" >> "{log}"\nexit 0\n', encoding="utf-8"
+    )
     broken.chmod(0o755)
 
     result, calls = run_entrypoint(stub_bin, {"SIGNSYNC_BOOTSTRAP_DEMO": "1"})

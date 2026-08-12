@@ -29,7 +29,6 @@ from signsync.evaluation import (
     word_error_rate,
 )
 
-
 # --------------------------------------------------------------------------- classification
 
 
@@ -239,7 +238,7 @@ def test_deaf_verdict_overrides_a_high_aggregate():
         {"deaf-0": 2, "deaf-1": 2, "deaf-2": 2, "interp-0": 5, "hearing-0": 5}
     ).result()
 
-    assert result.by_criterion["meaning_preserved"] > 2.5, "aggregate is pulled up by hearing raters"
+    assert result.by_criterion["meaning_preserved"] > 2.5, "pulled up by hearing raters"
     assert result.by_criterion_deaf["meaning_preserved"] < PASS_THRESHOLD
     assert not result.certified
     assert "meaning_preserved" in result.failing_criteria()

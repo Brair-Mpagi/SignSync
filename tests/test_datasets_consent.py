@@ -16,13 +16,13 @@ TODAY = date(2026, 8, 10)
 
 
 def make_record(**overrides) -> ConsentRecord:
-    defaults = dict(
-        participant_id="p1",
-        granted_on=TODAY - timedelta(days=30),
-        retention_until=TODAY + timedelta(days=365),
-        scopes=frozenset({ConsentScope.TRAINING, ConsentScope.EVALUATION}),
-        delivered_by="fluent-signer-1",
-    )
+    defaults = {
+        "participant_id": "p1",
+        "granted_on": TODAY - timedelta(days=30),
+        "retention_until": TODAY + timedelta(days=365),
+        "scopes": frozenset({ConsentScope.TRAINING, ConsentScope.EVALUATION}),
+        "delivered_by": "fluent-signer-1",
+    }
     defaults.update(overrides)
     return ConsentRecord(**defaults)  # type: ignore[arg-type]
 

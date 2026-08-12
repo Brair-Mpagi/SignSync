@@ -15,7 +15,7 @@ Hence :attr:`SpeechResult.is_audible`.
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import Protocol, runtime_checkable
 
 import numpy as np

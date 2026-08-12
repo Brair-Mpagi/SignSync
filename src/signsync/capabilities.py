@@ -16,7 +16,7 @@ from __future__ import annotations
 import importlib
 import importlib.util
 from dataclasses import dataclass
-from functools import lru_cache
+from functools import cache
 from types import ModuleType
 
 from .errors import MissingDependencyError
@@ -99,7 +99,7 @@ CAPABILITIES: tuple[Capability, ...] = (
 _BY_NAME = {c.name: c for c in CAPABILITIES}
 
 
-@lru_cache(maxsize=None)
+@cache
 def available(name: str) -> bool:
     """Return whether the capability's package can be imported.
 

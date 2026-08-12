@@ -41,6 +41,10 @@ jobs:
           print("core environment is clean")
           PY
 
+      # Deliberately NOT `ruff check --fix`. CI runs on a throwaway checkout, so
+      # autofixes are discarded when the job ends: the repository keeps the
+      # violations while the badge goes green. Linting in CI exists to fail.
+      # Reproduce locally with `make lint`, fix with `make fmt`.
       - name: Lint
         run: ruff check src tests
 

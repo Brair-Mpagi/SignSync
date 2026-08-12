@@ -23,9 +23,7 @@ never approximated.
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
-
-import numpy as np
+from dataclasses import dataclass
 
 from ..avatar.rig import Animation, FaceChannel, Pose, Rig, default_rig
 from ..datasets.schema import MarkerType, NonManualMarker

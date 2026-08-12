@@ -48,7 +48,7 @@ class TorchTrainingConfig:
 
 
 class TorchRecogniser:
-    """Inference wrapper implementing the :class:`~signsync.recognition.base.Recogniser` protocol."""
+    """Implements the :class:`~signsync.recognition.base.Recogniser` protocol."""
 
     def __init__(
         self,

@@ -18,7 +18,7 @@ from signsync.vision.schema import (
 
 def test_face_subset_is_small_and_consistent():
     """Plan §8.1: keep only the mesh points that carry non-manual grammar."""
-    assert N_FACE == len(FACE_INDICES)
+    assert len(FACE_INDICES) == N_FACE
     assert len(set(FACE_INDICES)) == N_FACE, "duplicate face landmark index"
     assert N_FACE < 60, "face subset has grown into identity territory"
     assert max(FACE_INDICES) < 468

@@ -21,7 +21,7 @@ from __future__ import annotations
 
 import math
 from collections import Counter
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 
 import numpy as np
 
@@ -291,7 +291,9 @@ def bleu(references: list[str], hypotheses: list[str], *, max_n: int = 4) -> flo
             ref_counts = Counter(_ngrams(ref_tokens, n))
             hyp_counts = Counter(_ngrams(hyp_tokens, n))
             totals[n - 1] += max(sum(hyp_counts.values()), 0)
-            clipped[n - 1] += sum(min(count, ref_counts[gram]) for gram, count in hyp_counts.items())
+            clipped[n - 1] += sum(
+                min(count, ref_counts[gram]) for gram, count in hyp_counts.items()
+            )
 
     if hypothesis_length == 0:
         return 0.0
@@ -347,7 +349,9 @@ def _lcs_length(a: list[str], b: list[str]) -> int:
     for token in a:
         current = [0]
         for j, other in enumerate(b, start=1):
-            current.append(previous[j - 1] + 1 if token == other else max(previous[j], current[j - 1]))
+            current.append(
+                previous[j - 1] + 1 if token == other else max(previous[j], current[j - 1])
+            )
         previous = current
     return previous[len(b)]
 

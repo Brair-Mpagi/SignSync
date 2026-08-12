@@ -122,11 +122,14 @@ class EvaluationReport:
         if self.rouge_l is not None:
             lines.append(f"  ROUGE-L              : {self.rouge_l:.3f}")
         if self.motion_smoothness is not None:
-            lines.append(f"  motion smoothness    : {self.motion_smoothness:.3f} (lower is smoother)")
+            lines.append(
+                f"  motion smoothness    : {self.motion_smoothness:.3f} (lower is smoother)"
+            )
         if len(lines) == 4:
             lines.append("  (none recorded)")
 
-        lines += ["", f"Split: {'signer-independent' if self.signer_independent else 'NOT signer-independent'}"]
+        split_note = "signer-independent" if self.signer_independent else "NOT signer-independent"
+        lines += ["", f"Split: {split_note}"]
         if self.corpus_note:
             lines.append(f"Corpus: {self.corpus_note}")
 

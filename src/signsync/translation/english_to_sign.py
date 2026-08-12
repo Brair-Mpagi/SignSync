@@ -65,10 +65,14 @@ _FUNCTION_WORDS = frozenset(
 #: them unresolved means the client is told the sentence was only partly translated.
 UNSUPPORTED_MODALS = frozenset({"can", "cannot", "must", "may", "might", "need to", "ought"})
 
-_NEGATIONS = frozenset({"not", "no", "never", "don't", "dont", "doesn't", "doesnt", "cannot", "can't", "cant"})
+_NEGATIONS = frozenset(
+    {"not", "no", "never", "don't", "dont", "doesn't", "doesnt", "cannot", "can't", "cant"}
+)
 _PAST_MARKERS = frozenset({"was", "were", "did", "had", "yesterday", "ago", "earlier"})
 _FUTURE_MARKERS = frozenset({"will", "shall", "tomorrow", "later", "soon", "going"})
-_POLAR_OPENERS = frozenset({"do", "does", "did", "are", "is", "am", "can", "will", "would", "have", "has"})
+_POLAR_OPENERS = frozenset(
+    {"do", "does", "did", "are", "is", "am", "can", "will", "would", "have", "has"}
+)
 
 
 @dataclass(frozen=True)

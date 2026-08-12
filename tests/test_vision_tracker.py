@@ -44,7 +44,6 @@ def test_replay_tracker_from_file(tmp_path, clip):
 
 
 def test_mediapipe_tracker_reports_the_missing_extra():
-    pytest.importorskip
     from signsync.capabilities import available
     from signsync.errors import MissingDependencyError
     from signsync.vision.tracker import MediaPipeHolisticTracker

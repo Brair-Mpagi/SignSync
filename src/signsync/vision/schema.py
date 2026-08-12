@@ -273,7 +273,9 @@ class FrameLandmarks:
             if arr.shape != (expected, 3):
                 raise ValueError(f"{name} must have shape ({expected}, 3), got {arr.shape}")
         if self.present.shape != (Channel.COUNT,):
-            raise ValueError(f"present must have shape ({Channel.COUNT},), got {self.present.shape}")
+            raise ValueError(
+                f"present must have shape ({Channel.COUNT},), got {self.present.shape}"
+            )
 
     @property
     def has_any_hand(self) -> bool:

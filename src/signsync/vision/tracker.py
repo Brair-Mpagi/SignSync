@@ -131,7 +131,9 @@ class ReplayTracker:
     def exhausted(self) -> bool:
         return not self.loop and self._cursor >= len(self.sequence)
 
-    def track(self, frame: np.ndarray | None = None, timestamp: float | None = None) -> FrameLandmarks:
+    def track(
+        self, frame: np.ndarray | None = None, timestamp: float | None = None
+    ) -> FrameLandmarks:
         if len(self.sequence) == 0:
             raise StopIteration("replay sequence is empty")
         if self._cursor >= len(self.sequence):

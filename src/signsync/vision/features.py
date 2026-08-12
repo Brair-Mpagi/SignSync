@@ -33,7 +33,7 @@ from dataclasses import dataclass, field
 import numpy as np
 
 from .normalise import NormalisedSequence
-from .schema import UPPER_BODY_POSE, HandIndex
+from .schema import HandIndex
 
 __all__ = [
     "FeatureConfig",

@@ -369,10 +369,7 @@ def normalise_sequence(
     head = np.zeros((n, 3), dtype=np.float32)
 
     for t in range(n):
-        if reference == "per_frame":
-            frame_ref = per_frame[t] or fallback
-        else:
-            frame_ref = fallback
+        frame_ref = (per_frame[t] or fallback) if reference == "per_frame" else fallback
 
         body[t] = frame_ref.apply(sequence.pose[t][list(kept)])
 
@@ -509,7 +506,8 @@ class StreamingNormaliser:
             "right": (frame.right_hand, Channel.RIGHT_HAND),
         }
         weak_side = "right" if self.dominant == "left" else "left"
-        for side, target in ((self.dominant, result.dominant_wrist), (weak_side, result.weak_wrist)):
+        sides = ((self.dominant, result.dominant_wrist), (weak_side, result.weak_wrist))
+        for side, target in sides:
             hand, channel = hands[side]
             if frame.present[channel]:
                 wrist = ref.apply(hand[HandIndex.WRIST])

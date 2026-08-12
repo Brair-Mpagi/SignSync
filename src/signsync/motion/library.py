@@ -32,12 +32,17 @@ from typing import Protocol, runtime_checkable
 
 import numpy as np
 
-from ..avatar.rig import Animation, FaceChannel, Pose, Rig, default_rig, quat_from_axis_angle
-from ..errors import SignSyncError
+from ..avatar.rig import FaceChannel, Pose, Rig, default_rig, quat_from_axis_angle
 from ..vision.synthetic import sign_signature
 from .ik import reach_wrist
 
-__all__ = ["SignClip", "ClipLibrary", "RecordedLibrary", "ProceduralLibrary", "FINGERSPELL_ALPHABET"]
+__all__ = [
+    "SignClip",
+    "ClipLibrary",
+    "RecordedLibrary",
+    "ProceduralLibrary",
+    "FINGERSPELL_ALPHABET",
+]
 
 #: Letters the fingerspelling fallback can produce.
 FINGERSPELL_ALPHABET = frozenset("ABCDEFGHIJKLMNOPQRSTUVWXYZ")
@@ -199,7 +204,9 @@ class ProceduralLibrary:
 
             if signature.two_handed:
                 _apply_handshape(self.rig, pose, "left", signature.curls, signature.spread)
-                reach_wrist(self.rig, pose, "left", _wrist_target(signature.wrist_path[frame], True))
+                reach_wrist(
+                    self.rig, pose, "left", _wrist_target(signature.wrist_path[frame], True)
+                )
             else:
                 _rest_arm(self.rig, pose, "left")
 
@@ -250,7 +257,8 @@ def _apply_handshape(rig: Rig, pose: Pose, side: str, curls: np.ndarray, spread:
             if segment == 1:
                 # Spread happens at the knuckle only.
                 sideways = quat_from_axis_angle(
-                    np.array([0.0, 0.0, 1.0]), (i - 2) * 0.12 * spread * (1 if side == "left" else -1)
+                    np.array([0.0, 0.0, 1.0]),
+                    (i - 2) * 0.12 * spread * (1 if side == "left" else -1),
                 )
                 from ..avatar.rig import quat_multiply
 

@@ -73,7 +73,9 @@ def test_pose_permutation_swaps_the_shoulders():
 
 
 def test_permutation_tolerates_a_partner_that_was_filtered_out():
-    permutation = mirror_permutation((PoseIndex.LEFT_SHOULDER,), ((PoseIndex.LEFT_SHOULDER, PoseIndex.RIGHT_SHOULDER),))
+    permutation = mirror_permutation(
+        (PoseIndex.LEFT_SHOULDER,), ((PoseIndex.LEFT_SHOULDER, PoseIndex.RIGHT_SHOULDER),)
+    )
     assert permutation == (0,), "an unpaired landmark must map to itself"
 
 
@@ -127,7 +129,8 @@ def test_detection_finds_the_moving_hand_in_a_one_handed_sign():
     )
     right = replace(SignerStyle.derived("signer-a"), left_handed=False)
     assert detect_dominant_hand(synthetic_sign(one_handed, right)) == "right"
-    assert detect_dominant_hand(synthetic_sign(one_handed, replace(right, left_handed=True))) == "left"
+    lefty = replace(right, left_handed=True)
+    assert detect_dominant_hand(synthetic_sign(one_handed, lefty)) == "left"
 
 
 def test_detection_defaults_to_right_without_evidence():

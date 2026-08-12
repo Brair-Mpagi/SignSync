@@ -74,7 +74,9 @@ _CONDITIONS = (
     RecordingConditions("daylight", "plain", "medium", "webcam", "clinic", "640x480"),
     RecordingConditions("indoor_fluorescent", "cluttered", "close", "phone", "school", "1280x720"),
     RecordingConditions("low_light", "plain", "far", "phone", "home", "640x480"),
-    RecordingConditions("daylight", "outdoor", "medium", "camcorder", "community_hall", "1920x1080"),
+    RecordingConditions(
+        "daylight", "outdoor", "medium", "camcorder", "community_hall", "1920x1080"
+    ),
 )
 
 

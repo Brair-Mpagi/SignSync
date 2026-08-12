@@ -32,7 +32,7 @@ import numpy as np
 from ..errors import SignSyncError
 from ..vision.features import motion_energy
 from ..vision.normalise import NormalisedSequence
-from .base import SignPrediction, Recogniser
+from .base import Recogniser, SignPrediction
 
 __all__ = ["Segment", "SegmentationConfig", "segment_motion", "ContinuousRecogniser"]
 
@@ -111,9 +111,10 @@ def segment_motion(
     spans = [s for s in spans if (s[1] - s[0]) / fps >= config.min_duration]
 
     max_frames = int(round(config.max_duration * fps))
+    min_frames = int(round(config.min_duration * fps))
     split_spans: list[tuple[int, int]] = []
     for start, end in spans:
-        split_spans.extend(_split_long(start, end, energy, max_frames, int(round(config.min_duration * fps))))
+        split_spans.extend(_split_long(start, end, energy, max_frames, min_frames))
 
     return [
         Segment(

@@ -232,7 +232,8 @@ def synthetic_sign(
         stable_seed("clip", gloss, style.signer_id) if seed is None else seed
     )
 
-    n = n_frames or max(8, int(round(int(params["frames"]) / style.speed)))  # type: ignore[arg-type]
+    frame_count = int(params["frames"])  # type: ignore[arg-type]
+    n = n_frames or max(8, int(round(frame_count / style.speed)))
     scale = style.shoulder_width
     cx, cy = style.centre
 
@@ -287,7 +288,8 @@ def synthetic_sign(
         pose[PoseIndex.RIGHT_THUMB] = right_wrist + [-0.02, -0.01, 0.0]
 
         curls = np.asarray(params["curls"], dtype=np.float64)
-        shape = _hand_points(curls, float(params["spread"]), phase) * scale  # type: ignore[arg-type]
+        spread = float(params["spread"])  # type: ignore[arg-type]
+        shape = _hand_points(curls, spread, phase) * scale
         right_hand = shape + dominant_wrist
         left_hand = shape * [-1, 1, 1] + other_wrist
 
@@ -445,7 +447,9 @@ _LIP_SUBSET = tuple(
 )
 
 
-def _face_points(centre: tuple[float, float], scale: float, brow: float, mouth: float) -> np.ndarray:
+def _face_points(
+    centre: tuple[float, float], scale: float, brow: float, mouth: float
+) -> np.ndarray:
     """Face-mesh subset around a centre, with brow height and mouth aperture.
 
     Left-right symmetric by construction, so that mirroring a clip produces a face

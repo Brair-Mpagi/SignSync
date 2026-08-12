@@ -55,7 +55,10 @@ class PiperTTS:
         if not text.strip():
             return SpeechResult(text="", engine=self.name, detail="empty text")
 
-        chunks = [np.frombuffer(chunk, dtype=np.int16) for chunk in self._voice.synthesize_stream_raw(text)]
+        chunks = [
+            np.frombuffer(chunk, dtype=np.int16)
+            for chunk in self._voice.synthesize_stream_raw(text)
+        ]
         if not chunks:
             return SpeechResult(
                 text=text,

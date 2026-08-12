@@ -91,7 +91,9 @@ def _cmd_corpus_split(args: argparse.Namespace) -> int:
     records = None
     consent_path = Path(args.root) / "consent.json"
     if consent_path.exists():
-        loader = CorpusLoader(corpus, ConsentRegistry.load(consent_path), scope=ConsentScope.TRAINING)
+        loader = CorpusLoader(
+            corpus, ConsentRegistry.load(consent_path), scope=ConsentScope.TRAINING
+        )
         records = loader.permitted_clips()
         excluded = len(corpus) - len(records)
         if excluded:
@@ -119,7 +121,7 @@ def _cmd_train(args: argparse.Namespace) -> int:
     from .datasets.corpus import CorpusLoader
     from .datasets.schema import Corpus
     from .recognition.base import RecogniserConfig
-    from .recognition.train import TrainingRun, confusion_pairs, train_from_corpus
+    from .recognition.train import TrainingRun, train_from_corpus
 
     corpus = Corpus.load(args.corpus)
     consent_path = Path(args.corpus) / "consent.json"

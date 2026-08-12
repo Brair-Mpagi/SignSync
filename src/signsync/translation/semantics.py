@@ -176,9 +176,7 @@ class SemanticFrame:
         markers: list[MarkerType] = []
         if self.speech_act is SpeechAct.CONTENT_QUESTION:
             markers.append(MarkerType.BROW_FURROW)
-        elif self.speech_act is SpeechAct.POLAR_QUESTION:
-            markers.append(MarkerType.BROW_RAISE)
-        elif self.speech_act is SpeechAct.CONDITIONAL:
+        elif self.speech_act in (SpeechAct.POLAR_QUESTION, SpeechAct.CONDITIONAL):
             markers.append(MarkerType.BROW_RAISE)
         if self.polarity is Polarity.NEGATIVE:
             markers.append(MarkerType.HEAD_SHAKE)

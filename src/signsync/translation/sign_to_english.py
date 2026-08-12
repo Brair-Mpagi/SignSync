@@ -109,7 +109,9 @@ def parse_glosses(
             builder.polarity = Polarity.NEGATIVE
         elif entry.pos == "time":
             builder.tense = entry.tense
-            builder.add(Entity(entry.gloss, Role.TIME, entry.primary_english, confidence=confidence))
+            builder.add(
+                Entity(entry.gloss, Role.TIME, entry.primary_english, confidence=confidence)
+            )
         elif entry.pos == "aspect":
             builder.aspect = entry.aspect
             if entry.aspect is Aspect.COMPLETED and builder.tense is Tense.UNSPECIFIED:

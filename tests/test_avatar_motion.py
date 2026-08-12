@@ -21,7 +21,6 @@ from signsync.avatar import (
     rig_to_dict,
 )
 from signsync.avatar.rig import Joint, quat_between
-from signsync.datasets.schema import MarkerType, NonManualMarker
 from signsync.errors import SignSyncError
 from signsync.motion import (
     MotionConfig,
@@ -252,7 +251,9 @@ def test_signs_are_separated_by_transitions_not_concatenated(generator, rig):
 def test_motion_is_continuous_frame_to_frame(generator, rig):
     """No teleporting hands: consecutive frames must not jump."""
     animation = generator.generate(["HELLO", "WATER", "HELP"]).animation
-    positions = np.stack([rig.forward_kinematics(p)[rig.index("right_wrist")] for p in animation.poses])
+    positions = np.stack(
+        [rig.forward_kinematics(p)[rig.index("right_wrist")] for p in animation.poses]
+    )
     steps = np.linalg.norm(np.diff(positions, axis=0), axis=1)
     assert steps.max() < 0.35, f"largest single-frame hand jump was {steps.max():.3f}"
 

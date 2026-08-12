@@ -24,9 +24,7 @@ and says so; it does not stop the pipeline from starting.
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
-
-import numpy as np
+from dataclasses import dataclass
 
 from .avatar.rig import Animation, Rig, default_rig
 from .datasets.schema import MarkerType
@@ -190,7 +188,9 @@ class SignSyncPipeline:
 
     # ---------------------------------------------------------------- mode A
 
-    def recognise(self, sequence: LandmarkSequence, *, dominant: str = "right") -> list[SignPrediction]:
+    def recognise(
+        self, sequence: LandmarkSequence, *, dominant: str = "right"
+    ) -> list[SignPrediction]:
         """Landmarks to a gloss sequence, segmenting continuous signing (plan §8.3)."""
         if self.recogniser is None:
             raise SignSyncError(

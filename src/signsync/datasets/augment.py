@@ -123,7 +123,9 @@ def temporal_rescale(sequence: LandmarkSequence, factor: float) -> LandmarkSeque
     )
 
 
-def mirror_handedness(sequence: LandmarkSequence, *, i_accept_direction_reversal: bool) -> LandmarkSequence:
+def mirror_handedness(
+    sequence: LandmarkSequence, *, i_accept_direction_reversal: bool
+) -> LandmarkSequence:
     """Mirror a clip left-to-right, swapping the hands.
 
     Only valid for signs whose meaning does not depend on direction. Mirroring
@@ -187,7 +189,10 @@ def augment(
         [[cos_a, -sin_a, 0.0], [sin_a, cos_a, 0.0], [0.0, 0.0, 1.0]], dtype=np.float32
     )
     shift = (
-        np.array([*rng.uniform(-policy.translation, policy.translation, size=2), 0.0], dtype=np.float32)
+        np.array(
+            [*rng.uniform(-policy.translation, policy.translation, size=2), 0.0],
+            dtype=np.float32,
+        )
         if policy.translation
         else np.zeros(3, dtype=np.float32)
     )

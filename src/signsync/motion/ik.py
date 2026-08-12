@@ -75,7 +75,8 @@ def solve_two_bone(
     reach = upper_length + lower_length
 
     if distance < _EPS:
-        return IKResult(quat_from_axis_angle([1, 0, 0], 0.0), quat_from_axis_angle([1, 0, 0], 0.0), False, reach)
+        identity = quat_from_axis_angle([1, 0, 0], 0.0)
+        return IKResult(identity, identity, False, reach)
 
     reached = distance <= reach
     clamped = min(distance, reach * 0.999)
