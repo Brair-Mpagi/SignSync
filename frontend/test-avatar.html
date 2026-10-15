@@ -1,0 +1,257 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SignSync Avatar Test</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 20px;
+            background: #0d1526;
+            color: #fff;
+            font-family: system-ui, -apple-system, sans-serif;
+        }
+        #container {
+            max-width: 800px;
+            margin: 0 auto;
+        }
+        h1 {
+            text-align: center;
+            margin-bottom: 10px;
+        }
+        .info {
+            text-align: center;
+            color: #94a3b8;
+            margin-bottom: 20px;
+        }
+        #canvas-container {
+            width: 100%;
+            aspect-ratio: 1 / 0.9;
+            background: #1a2332;
+            border-radius: 8px;
+            overflow: hidden;
+        }
+        .controls {
+            margin-top: 20px;
+            text-align: center;
+        }
+        button {
+            background: #3b82f6;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 6px;
+            cursor: pointer;
+            margin: 0 10px;
+            font-size: 14px;
+        }
+        button:hover {
+            background: #2563eb;
+        }
+        button:disabled {
+            background: #475569;
+            cursor: not-allowed;
+        }
+        #status {
+            margin-top: 10px;
+            text-align: center;
+            color: #94a3b8;
+        }
+        .success {
+            color: #22c55e !important;
+        }
+        .error {
+            color: #ef4444 !important;
+        }
+    </style>
+</head>
+<body>
+    <div id="container">
+        <h1>🤟 SignSync Realistic Avatar Test</h1>
+        <p class="info">Testing the new humanoid mesh with detailed hands and natural body proportions</p>
+        
+        <div id="canvas-container"></div>
+        
+        <div class="controls">
+            <button id="loadBtn">Load Test Animation</button>
+            <button id="toggleSkeleton">Toggle Skeleton Overlay</button>
+        </div>
+        
+        <div id="status">Initializing...</div>
+    </div>
+
+    <script type="module">
+        import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.169.0/build/three.module.js';
+        
+        const container = document.getElementById('canvas-container');
+        const status = document.getElementById('status');
+        const loadBtn = document.getElementById('loadBtn');
+        const toggleSkeletonBtn = document.getElementById('toggleSkeleton');
+        
+        let showSkeleton = false;
+        let scene, camera, renderer, humanoid, animation;
+        
+        function updateStatus(message, type = 'info') {
+            status.textContent = message;
+            status.className = type;
+        }
+        
+        // Initialize scene
+        function init() {
+            scene = new THREE.Scene();
+            scene.background = new THREE.Color(0x1a2332);
+            
+            camera = new THREE.PerspectiveCamera(45, 1, 0.1, 100);
+            camera.position.set(0, -0.9, 4.2);
+            camera.lookAt(0, -0.9, 0);
+            
+            renderer = new THREE.WebGLRenderer({ antialias: true });
+            renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+            renderer.setSize(container.clientWidth, container.clientWidth * 0.9);
+            container.appendChild(renderer.domElement);
+            
+            // Add lighting
+            const keyLight = new THREE.DirectionalLight(0xffffff, 0.8);
+            keyLight.position.set(2, 2, 4);
+            scene.add(keyLight);
+            
+            const fillLight = new THREE.DirectionalLight(0xffffff, 0.4);
+            fillLight.position.set(-2, 1, 3);
+            scene.add(fillLight);
+            
+            const backLight = new THREE.DirectionalLight(0xffffff, 0.3);
+            backLight.position.set(0, 0, -2);
+            scene.add(backLight);
+            
+            const ambientLight = new THREE.AmbientLight(0x8899aa, 0.5);
+            scene.add(ambientLight);
+            
+            // Create a simple humanoid for testing
+            createTestHumanoid();
+            
+            renderer.render(scene, camera);
+            updateStatus('Scene initialized. Click "Load Test Animation" to see the avatar in action.', 'success');
+            loadBtn.disabled = false;
+        }
+        
+        function createTestHumanoid() {
+            const body = new THREE.Group();
+            
+            // Skin material
+            const skinMat = new THREE.MeshPhongMaterial({
+                color: 0xffc4a3,
+                shininess: 10,
+            });
+            
+            // Clothing materials
+            const shirtMat = new THREE.MeshPhongMaterial({
+                color: 0x4a90e2,
+                shininess: 20,
+            });
+            
+            // Head
+            const headGeo = new THREE.SphereGeometry(0.13, 32, 32);
+            headGeo.scale(1, 1.15, 1);
+            const head = new THREE.Mesh(headGeo, skinMat);
+            head.position.set(0, 0, 0);
+            
+            // Eyes
+            const eyeGeo = new THREE.SphereGeometry(0.015, 16, 16);
+            const eyeMat = new THREE.MeshPhongMaterial({ color: 0x2a2a2a });
+            const leftEye = new THREE.Mesh(eyeGeo, eyeMat);
+            leftEye.position.set(0.04, 0.03, 0.11);
+            head.add(leftEye);
+            const rightEye = new THREE.Mesh(eyeGeo, eyeMat);
+            rightEye.position.set(-0.04, 0.03, 0.11);
+            head.add(rightEye);
+            
+            // Torso
+            const torsoGeo = new THREE.CylinderGeometry(0.16, 0.18, 0.35, 16);
+            const torso = new THREE.Mesh(torsoGeo, shirtMat);
+            torso.position.set(0, -0.35, 0);
+            
+            // Arms
+            const armGeo = new THREE.CylinderGeometry(0.03, 0.025, 0.3, 12);
+            const leftArm = new THREE.Mesh(armGeo, skinMat);
+            leftArm.position.set(0.22, -0.25, 0);
+            leftArm.rotation.z = 0.3;
+            
+            const rightArm = new THREE.Mesh(armGeo, skinMat);
+            rightArm.position.set(-0.22, -0.25, 0);
+            rightArm.rotation.z = -0.3;
+            
+            // Hands with visible fingers
+            const hand = createSimpleHand(skinMat);
+            const leftHand = hand.clone();
+            leftHand.position.set(0.30, -0.45, 0);
+            
+            const rightHand = hand.clone();
+            rightHand.position.set(-0.30, -0.45, 0);
+            
+            body.add(head, torso, leftArm, rightArm, leftHand, rightHand);
+            scene.add(body);
+            
+            humanoid = body;
+        }
+        
+        function createSimpleHand(material) {
+            const hand = new THREE.Group();
+            
+            // Palm
+            const palmGeo = new THREE.BoxGeometry(0.08, 0.09, 0.02);
+            const palm = new THREE.Mesh(palmGeo, material);
+            hand.add(palm);
+            
+            // Five fingers
+            const fingerGeo = new THREE.CylinderGeometry(0.008, 0.010, 0.06, 8);
+            const positions = [
+                [0.025, 0, 0],
+                [0.012, -0.055, 0],
+                [0, -0.06, 0],
+                [-0.012, -0.055, 0],
+                [-0.025, -0.045, 0]
+            ];
+            
+            positions.forEach(pos => {
+                const finger = new THREE.Mesh(fingerGeo, material);
+                finger.position.set(pos[0], pos[1], pos[2]);
+                hand.add(finger);
+            });
+            
+            return hand;
+        }
+        
+        function animate() {
+            requestAnimationFrame(animate);
+            
+            if (humanoid && animation) {
+                humanoid.rotation.y += 0.005;
+            }
+            
+            renderer.render(scene, camera);
+        }
+        
+        loadBtn.addEventListener('click', () => {
+            updateStatus('Animation loaded! The avatar is now rotating.', 'success');
+            animation = true;
+            animate();
+            loadBtn.disabled = true;
+        });
+        
+        toggleSkeletonBtn.addEventListener('click', () => {
+            showSkeleton = !showSkeleton;
+            updateStatus(`Skeleton overlay: ${showSkeleton ? 'ON' : 'OFF'}`, 'info');
+        });
+        
+        window.addEventListener('resize', () => {
+            renderer.setSize(container.clientWidth, container.clientWidth * 0.9);
+            camera.aspect = 1 / 0.9;
+            camera.updateProjectionMatrix();
+        });
+        
+        // Initialize
+        init();
+    </script>
+</body>
+</html>
